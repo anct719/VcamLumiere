@@ -29,8 +29,10 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-path
           uname -m
 
-      - name: Install ldid
-        run: brew install ldid
+      - name: Install ldid and openssl
+        run: |
+          brew install ldid openssl
+          echo "OpenSSL: $(brew --prefix openssl)"
 
       - name: Create CydiaSubstrate stub
         run: |
@@ -75,14 +77,18 @@ jobs:
             RTMP_SRCS=$(find librtmp -name "*.c" -not -name "sslstub.c" | tr '\n' ' ')
           fi
 
+          OPENSSL_DIR=$(brew --prefix openssl)
+
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
-                -fobjc-arc -fmodules -O2 -Wall -Wno-unused-variable -Wno-unused-function \
+                -fobjc-arc -fmodules -O2 -Wno-unused-result -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations \
                 -dynamiclib \
                 -install_name /Library/MobileSubstrate/DynamicLibraries/VcamLumiereDaemon.dylib \
                 -I"$SUBSTRATE_DIR" \
                 -I"$(pwd)" \
+                -I"$OPENSSL_DIR/include" \
                 -L"$SUBSTRATE_DIR" \
-                -lsubstrate \
+                -L"$OPENSSL_DIR/lib" \
+                -lsubstrate -lssl -lcrypto \
                 Daemon/Tweak.m Daemon/VCamManager.m Daemon/RTMPClient.m Daemon/H264Decoder.m \
                 Shared/VcamSharedAuth.m Shared/VcamAntiHook.m \
                 $RTMP_SRCS \
@@ -103,7 +109,7 @@ jobs:
           SUBSTRATE_DIR="$(pwd)/deps/substrate"
 
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
-                -fobjc-arc -fmodules -O2 -Wall -Wno-unused-variable -Wno-unused-function \
+                -fobjc-arc -fmodules -O2 -Wno-unused-result -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations \
                 -dynamiclib \
                 -install_name /Library/MobileSubstrate/DynamicLibraries/VcamLumiereUI.dylib \
                 -I"$SUBSTRATE_DIR" \
