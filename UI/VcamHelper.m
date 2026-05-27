@@ -437,18 +437,6 @@
         spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
     }
 
-    UIAction *confirmAction = [UIAction actionWithTitle:@"Confirm"
-                                                  image:nil
-                                             identifier:nil
-                                                handler:^(UIAction *action) {
-        NSString *username = alert.textFields[0].text;
-        NSString *password = alert.textFields[1].text;
-        [self.loginHelper doLogin:nil
-                         username:username
-                         password:password
-                            error:errorLabel
-                          spinner:spinner];
-    }];
 
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel"
                                               style:UIAlertActionStyleCancel

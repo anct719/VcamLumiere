@@ -35,14 +35,35 @@ jobs:
       - name: Create CydiaSubstrate stub
         run: |
           mkdir -p deps/substrate
-          printf '#ifndef SUBSTRATE_H\n#define SUBSTRATE_H\n#import <objc/runtime.h>\n#import <objc/message.h>\n#ifdef __cplusplus\nextern "C" {\n#endif\nvoid MSHookMessageEx(Class _class, SEL message, IMP hook, IMP *old);\nvoid MSHookFunction(void *symbol, void *hook, void **old);\n#ifdef __cplusplus\n}\n#endif\n#endif\n' > deps/substrate/substrate.h
-          printf '#include <objc/runtime.h>\nvoid MSHookMessageEx(Class _class, SEL message, IMP hook, IMP *old) { if (old) *old = class_replaceMethod(_class, message, hook, NULL); }\nvoid MSHookFunction(void *symbol, void *hook, void **old) {}\n' > deps/substrate/substrate_stub.c
+          cat > deps/substrate/substrate.h << 'HEOF'
+          #ifndef SUBSTRATE_H
+          #define SUBSTRATE_H
+          #import <objc/runtime.h>
+          #import <objc/message.h>
+          #ifdef __cplusplus
+          extern "C" {
+          #endif
+          void MSHookMessageEx(Class _class, SEL message, IMP hook, IMP *old);
+          void MSHookFunction(void *symbol, void *hook, void **old);
+          #ifdef __cplusplus
+          }
+          #endif
+          #endif
+          HEOF
+
+          cat > deps/substrate/substrate_stub.c << 'SEOF'
+          #include <objc/runtime.h>
+          void MSHookMessageEx(Class _class, SEL message, IMP hook, IMP *old) {
+              if (old) *old = class_replaceMethod(_class, message, hook, NULL);
+          }
+          void MSHookFunction(void *symbol, void *hook, void **old) {}
+          SEOF
+
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
                 -dynamiclib -o deps/substrate/libsubstrate.dylib deps/substrate/substrate_stub.c \
                 -framework Foundation -install_name /usr/lib/libsubstrate.dylib
           echo "[OK] CydiaSubstrate stub created"
-          ls -la deps/substrate/
 
       - name: Download librtmp
         run: |
@@ -52,7 +73,7 @@ jobs:
             echo "[OK] librtmp source ready"
           else
             mkdir -p librtmp
-            echo "[WARN] librtmp not found, creating empty placeholder"
+            echo "[WARN] librtmp not found"
           fi
 
       - name: Update server URL
@@ -64,22 +85,38 @@ jobs:
           sed -i '' "s|https://your-server.com|${SERVER_URL}|g" Shared/VcamConstants.h
           grep "kVCServerBaseURL" Shared/VcamConstants.h
 
+      - name: Compile librtmp objects
+        run: |
+          SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
+          mkdir -p build/obj
+
+          # Compile each librtmp C file individually with NO_SSL, skip hashswf.c and sslstub.c
+          for f in librtmp/*.c; do
+            base=$(basename "$f" .c)
+            if [ "$base" = "hashswf" ] || [ "$base" = "sslstub" ]; then
+              echo "  skip: $f"
+              continue
+            fi
+            echo "  compile: $f"
+            clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
+                  -DNO_SSL -DNO_CRYPTO \
+                  -w -O2 -c "$f" -o "build/obj/${base}.o"
+          done
+
+          echo "[OK] librtmp objects compiled"
+          ls build/obj/
+
       - name: Build VcamLumiereDaemon.dylib
         run: |
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           SUBSTRATE_DIR="$(pwd)/deps/substrate"
           mkdir -p build
 
-          # Compile librtmp WITHOUT SSL (can't link macOS openssl into iOS binary)
-          RTMP_SRCS=""
-          if ls librtmp/*.c 1>/dev/null 2>&1; then
-            RTMP_SRCS=$(find librtmp -name "*.c" -not -name "sslstub.c" -not -name "hashswf.c" | tr '\n' ' ')
-          fi
+          # Collect .o files from librtmp
+          RTMP_OBJS=$(find build/obj -name "*.o" 2>/dev/null | tr '\n' ' ')
 
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
-                -fobjc-arc -fmodules -O2 -Wno-unused-result -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations \
-                -Wno-tautological-constant-out-of-range-compare -Wno-#warnings \
-                -DNO_SSL \
+                -fobjc-arc -fmodules -O2 -w \
                 -dynamiclib \
                 -install_name /Library/MobileSubstrate/DynamicLibraries/VcamLumiereDaemon.dylib \
                 -I"$SUBSTRATE_DIR" \
@@ -88,7 +125,7 @@ jobs:
                 -lsubstrate \
                 Daemon/Tweak.m Daemon/VCamManager.m Daemon/RTMPClient.m Daemon/H264Decoder.m \
                 Shared/VcamSharedAuth.m Shared/VcamAntiHook.m \
-                $RTMP_SRCS \
+                $RTMP_OBJS \
                 -framework Foundation -framework CoreMedia -framework CoreVideo \
                 -framework VideoToolbox -framework Accelerate -framework CoreImage \
                 -framework Security -framework CFNetwork -framework ImageIO \
@@ -97,6 +134,7 @@ jobs:
                 -o build/VcamLumiereDaemon.dylib
 
           echo "[OK] VcamLumiereDaemon.dylib built"
+          file build/VcamLumiereDaemon.dylib
           ldid -Sentitlements.plist build/VcamLumiereDaemon.dylib
           echo "[OK] Signed"
 
@@ -106,7 +144,7 @@ jobs:
           SUBSTRATE_DIR="$(pwd)/deps/substrate"
 
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
-                -fobjc-arc -fmodules -O2 -Wno-unused-result -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations \
+                -fobjc-arc -fmodules -O2 -w \
                 -dynamiclib \
                 -install_name /Library/MobileSubstrate/DynamicLibraries/VcamLumiereUI.dylib \
                 -I"$SUBSTRATE_DIR" \
@@ -123,6 +161,7 @@ jobs:
                 -o build/VcamLumiereUI.dylib
 
           echo "[OK] VcamLumiereUI.dylib built"
+          file build/VcamLumiereUI.dylib
           ldid -Sentitlements.plist build/VcamLumiereUI.dylib
           echo "[OK] Signed"
 
@@ -145,6 +184,7 @@ jobs:
 
           DEB_NAME="${PACKAGE_NAME}_${PACKAGE_VERSION}_iphoneos-arm.deb"
           dpkg-deb -Zxz --root-owner-group --build "$STAGE" "build/$DEB_NAME"
+          echo "[OK] .deb packaged"
           ls -la build/*.deb
 
       - name: Upload .deb artifact
