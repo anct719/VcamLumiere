@@ -5,6 +5,8 @@
 #import <Foundation/Foundation.h>
 #import <CoreVideo/CoreVideo.h>
 
+@class H264Decoder;
+
 @protocol RTMPClientDelegate <NSObject>
 - (void)rtmpClientDidConnect:(id)client;
 - (void)rtmpClientDidDisconnect:(id)client reason:(NSString *)reason;
@@ -15,6 +17,7 @@
 @interface RTMPClient : NSObject
 
 @property (nonatomic, weak) id<RTMPClientDelegate> delegate;
+@property (nonatomic, strong, readonly) H264Decoder *decoder;
 @property (nonatomic, assign, readonly) BOOL isConnected;
 @property (nonatomic, assign, readonly) BOOL isRunning;
 
@@ -22,3 +25,4 @@
 - (void)stop;
 
 @end
+

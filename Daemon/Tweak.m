@@ -104,8 +104,7 @@ static CVPixelBufferRef createReplacementBuffer(CVPixelBufferRef original,
         return NULL;
     }
 
-    // Copy color space attachments from original
-    CVBufferCopyAttachments(original, kCVAttachmentMode_ShouldPropagate);
+    // Copy color space attachments from original to destination
 
     NSDictionary *attachments = (__bridge NSDictionary *)CVBufferGetAttachments(
         original, kCVAttachmentMode_ShouldPropagate);
