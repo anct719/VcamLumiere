@@ -130,9 +130,10 @@ jobs:
           cp Layout/var/jb/Library/MobileSubstrate/DynamicLibraries/*.plist \
              "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
           echo '#!/bin/bash' > "$STAGE/DEBIAN/postinst"
-          echo 'killall -9 mediaserverd 2>/dev/null || true' >> "$STAGE/DEBIAN/postinst"
-          echo 'killall -9 SpringBoard 2>/dev/null || true' >> "$STAGE/DEBIAN/postinst"
+          echo 'echo "VcamLumiere installed. Please respring to activate."' >> "$STAGE/DEBIAN/postinst"
           chmod 755 "$STAGE/DEBIAN/postinst"
+          echo 'SBReloadSpringBoard' > "$STAGE/DEBIAN/extrainst_"
+          chmod 755 "$STAGE/DEBIAN/extrainst_"
           DEB_NAME="${PACKAGE_NAME}_${PACKAGE_VERSION}_iphoneos-arm.deb"
           dpkg-deb -Zxz --root-owner-group --build "$STAGE" "build/$DEB_NAME"
           echo "[OK] .deb packaged"
