@@ -29,10 +29,8 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-path
           uname -m
 
-      - name: Install ldid and openssl
-        run: |
-          brew install ldid openssl
-          echo "OpenSSL: $(brew --prefix openssl)"
+      - name: Install ldid
+        run: brew install ldid
 
       - name: Create CydiaSubstrate stub
         run: |
@@ -72,23 +70,22 @@ jobs:
           SUBSTRATE_DIR="$(pwd)/deps/substrate"
           mkdir -p build
 
+          # Compile librtmp WITHOUT SSL (can't link macOS openssl into iOS binary)
           RTMP_SRCS=""
           if ls librtmp/*.c 1>/dev/null 2>&1; then
-            RTMP_SRCS=$(find librtmp -name "*.c" -not -name "sslstub.c" | tr '\n' ' ')
+            RTMP_SRCS=$(find librtmp -name "*.c" -not -name "sslstub.c" -not -name "hashswf.c" | tr '\n' ' ')
           fi
-
-          OPENSSL_DIR=$(brew --prefix openssl)
 
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
                 -fobjc-arc -fmodules -O2 -Wno-unused-result -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations \
+                -Wno-tautological-constant-out-of-range-compare -Wno-#warnings \
+                -DNO_SSL \
                 -dynamiclib \
                 -install_name /Library/MobileSubstrate/DynamicLibraries/VcamLumiereDaemon.dylib \
                 -I"$SUBSTRATE_DIR" \
                 -I"$(pwd)" \
-                -I"$OPENSSL_DIR/include" \
                 -L"$SUBSTRATE_DIR" \
-                -L"$OPENSSL_DIR/lib" \
-                -lsubstrate -lssl -lcrypto \
+                -lsubstrate \
                 Daemon/Tweak.m Daemon/VCamManager.m Daemon/RTMPClient.m Daemon/H264Decoder.m \
                 Shared/VcamSharedAuth.m Shared/VcamAntiHook.m \
                 $RTMP_SRCS \
