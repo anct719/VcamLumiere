@@ -32,49 +32,33 @@ jobs:
       - name: Install ldid
         run: brew install ldid
 
-      - name: Create CydiaSubstrate stub
+      - name: Build CydiaSubstrate stub dylib
         run: |
-          mkdir -p deps/substrate
-          cat > deps/substrate/substrate.h << 'HEOF'
-          #ifndef SUBSTRATE_H
-          #define SUBSTRATE_H
-          #import <objc/runtime.h>
-          #import <objc/message.h>
-          #ifdef __cplusplus
-          extern "C" {
-          #endif
-          void MSHookMessageEx(Class _class, SEL message, IMP hook, IMP *old);
-          void MSHookFunction(void *symbol, void *hook, void **old);
-          #ifdef __cplusplus
-          }
-          #endif
-          #endif
-          HEOF
-
-          cat > deps/substrate/substrate_stub.c << 'SEOF'
-          #include <objc/runtime.h>
-          void MSHookMessageEx(Class _class, SEL message, IMP hook, IMP *old) {
-              if (old) *old = class_replaceMethod(_class, message, hook, NULL);
-          }
-          void MSHookFunction(void *symbol, void *hook, void **old) {}
-          SEOF
-
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
                 -dynamiclib -o deps/substrate/libsubstrate.dylib deps/substrate/substrate_stub.c \
                 -framework Foundation -install_name /usr/lib/libsubstrate.dylib
-          echo "[OK] CydiaSubstrate stub created"
+          echo "[OK] CydiaSubstrate stub built"
 
-      - name: Download librtmp
+      - name: Download and compile librtmp
         run: |
           git clone --depth 1 https://github.com/mirror/rtmpdump.git deps/rtmpdump || true
           if [ -d deps/rtmpdump/librtmp ]; then
             cp -r deps/rtmpdump/librtmp ./librtmp
-            echo "[OK] librtmp source ready"
+            echo "[OK] librtmp source copied"
           else
-            mkdir -p librtmp
-            echo "[WARN] librtmp not found"
+            echo "[ERR] librtmp not found"; exit 1
           fi
+          SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
+          mkdir -p build/obj
+          for f in librtmp/*.c; do
+            base=$(basename "$f" .c)
+            case "$base" in hashswf|sslstub) echo "  skip $base"; continue;; esac
+            echo "  compile $base.c"
+            clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
+                  -DNO_SSL -DNO_CRYPTO -w -O2 -c "$f" -o "build/obj/${base}.o"
+          done
+          echo "[OK] librtmp compiled ($(ls build/obj/*.o | wc -l) objects)"
 
       - name: Update server URL
         if: github.event.inputs.server_url != '' && github.event.inputs.server_url != 'https://your-server.com'
@@ -83,46 +67,20 @@ jobs:
           echo "Setting server URL to: ${SERVER_URL}"
           sed -i '' "s|https://thitconmeo.bond|${SERVER_URL}|g" Shared/VcamConstants.h
           sed -i '' "s|https://your-server.com|${SERVER_URL}|g" Shared/VcamConstants.h
-          grep "kVCServerBaseURL" Shared/VcamConstants.h
-
-      - name: Compile librtmp objects
-        run: |
-          SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
-          mkdir -p build/obj
-
-          # Compile each librtmp C file individually with NO_SSL, skip hashswf.c and sslstub.c
-          for f in librtmp/*.c; do
-            base=$(basename "$f" .c)
-            if [ "$base" = "hashswf" ] || [ "$base" = "sslstub" ]; then
-              echo "  skip: $f"
-              continue
-            fi
-            echo "  compile: $f"
-            clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
-                  -DNO_SSL -DNO_CRYPTO \
-                  -w -O2 -c "$f" -o "build/obj/${base}.o"
-          done
-
-          echo "[OK] librtmp objects compiled"
-          ls build/obj/
 
       - name: Build VcamLumiereDaemon.dylib
         run: |
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           SUBSTRATE_DIR="$(pwd)/deps/substrate"
           mkdir -p build
-
-          # Collect .o files from librtmp
           RTMP_OBJS=$(find build/obj -name "*.o" 2>/dev/null | tr '\n' ' ')
-
+          echo "Linking with librtmp objects: $RTMP_OBJS"
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
                 -fobjc-arc -fmodules -O2 -w \
                 -dynamiclib \
                 -install_name /Library/MobileSubstrate/DynamicLibraries/VcamLumiereDaemon.dylib \
-                -I"$SUBSTRATE_DIR" \
-                -I"$(pwd)" \
-                -L"$SUBSTRATE_DIR" \
-                -lsubstrate \
+                -I"$SUBSTRATE_DIR" -I"$(pwd)" \
+                -L"$SUBSTRATE_DIR" -lsubstrate \
                 Daemon/Tweak.m Daemon/VCamManager.m Daemon/RTMPClient.m Daemon/H264Decoder.m \
                 Shared/VcamSharedAuth.m Shared/VcamAntiHook.m \
                 $RTMP_OBJS \
@@ -132,7 +90,6 @@ jobs:
                 -framework QuartzCore -framework UIKit \
                 -lz \
                 -o build/VcamLumiereDaemon.dylib
-
           echo "[OK] VcamLumiereDaemon.dylib built"
           file build/VcamLumiereDaemon.dylib
           ldid -Sentitlements.plist build/VcamLumiereDaemon.dylib
@@ -142,15 +99,12 @@ jobs:
         run: |
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           SUBSTRATE_DIR="$(pwd)/deps/substrate"
-
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
                 -fobjc-arc -fmodules -O2 -w \
                 -dynamiclib \
                 -install_name /Library/MobileSubstrate/DynamicLibraries/VcamLumiereUI.dylib \
-                -I"$SUBSTRATE_DIR" \
-                -I"$(pwd)" \
-                -L"$SUBSTRATE_DIR" \
-                -lsubstrate \
+                -I"$SUBSTRATE_DIR" -I"$(pwd)" \
+                -L"$SUBSTRATE_DIR" -lsubstrate \
                 UI/Tweak.m UI/VcamHelper.m UI/VcamLoginHelper.m \
                 UI/VcamLiveVerifier.m UI/VcamPinnedSession.m \
                 UI/VcamPassthroughWindow.m UI/VcamVolumeObserver.m \
@@ -159,7 +113,6 @@ jobs:
                 -framework Security -framework AVFoundation \
                 -framework CoreGraphics -framework QuartzCore \
                 -o build/VcamLumiereUI.dylib
-
           echo "[OK] VcamLumiereUI.dylib built"
           file build/VcamLumiereUI.dylib
           ldid -Sentitlements.plist build/VcamLumiereUI.dylib
@@ -168,20 +121,18 @@ jobs:
       - name: Package .deb
         run: |
           brew install dpkg
-
           STAGE="package/stage"
           mkdir -p "$STAGE/DEBIAN"
           mkdir -p "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries"
-
           cp Layout/DEBIAN/control "$STAGE/DEBIAN/"
           cp build/VcamLumiereDaemon.dylib "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
           cp build/VcamLumiereUI.dylib     "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
           cp Layout/var/jb/Library/MobileSubstrate/DynamicLibraries/*.plist \
              "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
-
-          printf '#!/bin/bash\nkillall -9 mediaserverd 2>/dev/null || true\nkillall -9 SpringBoard 2>/dev/null || true\n' > "$STAGE/DEBIAN/postinst"
+          echo '#!/bin/bash' > "$STAGE/DEBIAN/postinst"
+          echo 'killall -9 mediaserverd 2>/dev/null || true' >> "$STAGE/DEBIAN/postinst"
+          echo 'killall -9 SpringBoard 2>/dev/null || true' >> "$STAGE/DEBIAN/postinst"
           chmod 755 "$STAGE/DEBIAN/postinst"
-
           DEB_NAME="${PACKAGE_NAME}_${PACKAGE_VERSION}_iphoneos-arm.deb"
           dpkg-deb -Zxz --root-owner-group --build "$STAGE" "build/$DEB_NAME"
           echo "[OK] .deb packaged"
