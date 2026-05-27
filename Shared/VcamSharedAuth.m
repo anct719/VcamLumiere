@@ -19,8 +19,8 @@
 #import <sys/utsname.h>
 #import <dlfcn.h>
 
-// libMobileGestalt (private framework) for UDID
-extern CFStringRef MGCopyAnswer(CFStringRef property);
+// libMobileGestalt — loaded dynamically to avoid linker error on macOS
+typedef CFStringRef (*MGCopyAnswer_t)(CFStringRef property);
 
 @implementation VcamSharedAuth
 
@@ -442,11 +442,17 @@ extern CFStringRef MGCopyAnswer(CFStringRef property);
 #pragma mark - Device Fingerprint
 
 - (NSString *)deviceFingerprint {
-    // Get UDID via MobileGestalt
+    // Get UDID via MobileGestalt (loaded dynamically)
     NSString *udid = @"unknown";
-    CFStringRef udidRef = MGCopyAnswer(CFSTR("UniqueDeviceID"));
-    if (udidRef) {
-        udid = (__bridge_transfer NSString *)udidRef;
+    void *gestalt = dlopen("/usr/lib/libMobileGestalt.dylib", RTLD_LAZY);
+    if (gestalt) {
+        MGCopyAnswer_t mgCopyAnswer = (MGCopyAnswer_t)dlsym(gestalt, "MGCopyAnswer");
+        if (mgCopyAnswer) {
+            CFStringRef udidRef = mgCopyAnswer(CFSTR("UniqueDeviceID"));
+            if (udidRef) {
+                udid = (__bridge_transfer NSString *)udidRef;
+            }
+        }
     }
 
     NSString *model = [self deviceModel];
