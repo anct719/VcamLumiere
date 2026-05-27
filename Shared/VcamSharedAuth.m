@@ -318,9 +318,19 @@ extern CFStringRef MGCopyAnswer(CFStringRef property);
         return NO;
     }
 
+    // Ed25519 constants — define manually as they may not be public in all SDK versions
+    // These are the actual CFString values used internally by Security.framework
+    CFStringRef kKeyTypeEd25519 = CFSTR("73");  // kSecAttrKeyTypeEd25519 internal value
+    CFStringRef kAlgoEdDSA = NULL;
+
+    // Try to load the algorithm symbol dynamically
+    // kSecKeyAlgorithmEdDSASignatureMessageX963SHA256 is available iOS 16.4+
+    // For raw Ed25519, we use the string identifier
+    kAlgoEdDSA = CFSTR("algid:sign:EdDSA:msg-raw");
+
     // Create Ed25519 public key from raw bytes using Security.framework
     NSDictionary *attrs = @{
-        (id)kSecAttrKeyType:  (id)kSecAttrKeyTypeEd25519,
+        (id)kSecAttrKeyType:  (__bridge id)kKeyTypeEd25519,
         (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPublic,
     };
 
@@ -339,10 +349,10 @@ extern CFStringRef MGCopyAnswer(CFStringRef property);
         return NO;
     }
 
-    // Verify signature
+    // Verify signature using the EdDSA raw algorithm
     BOOL valid = SecKeyVerifySignature(
         key,
-        kSecKeyAlgorithmEdDSAMessageRaw,
+        (SecKeyAlgorithm)kAlgoEdDSA,
         (__bridge CFDataRef)msgData,
         (__bridge CFDataRef)sigData,
         &error
