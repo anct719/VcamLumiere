@@ -1,0 +1,20 @@
+# Build output
+build/
+package/
+
+# Dependencies (downloaded by CI)
+deps/
+librtmp/
+
+# macOS
+.DS_Store
+*.dSYM/
+
+# Editor
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
