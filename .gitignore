@@ -4,6 +4,9 @@ package/
 
 # Dependencies (downloaded by CI)
 deps/
+!deps/substrate/
+!deps/substrate/substrate.h
+!deps/substrate/substrate_stub.c
 librtmp/
 
 # macOS
