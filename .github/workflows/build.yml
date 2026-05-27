@@ -1,27 +1,9 @@
-# VcamLumiere — Build .deb on macOS (GitHub Actions)
-#
-# Triggers: push to main, manual dispatch
-# Runner: macOS (has Xcode + iOS SDK pre-installed)
-#
-# Outputs: .deb artifact downloadable from Actions tab
-#
-# Required setup:
-#   1. Push VcamLumiere/ folder as a GitHub repo
-#   2. That's it — no secrets needed for building
-#      (crypto keys are already in VcamConstants.h)
-
 name: Build iOS .deb
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'Daemon/**'
-      - 'UI/**'
-      - 'Shared/**'
-      - 'build.sh'
-      - '.github/workflows/**'
-  workflow_dispatch:  # Manual trigger from GitHub UI
+  workflow_dispatch:
     inputs:
       server_url:
         description: 'Auth server URL (e.g. https://vcam.example.com)'
@@ -35,123 +17,66 @@ env:
 jobs:
   build:
     name: Build VcamLumiere
-    runs-on: macos-14  # Apple Silicon runner (M1), has Xcode 15+
-    
+    runs-on: macos-14
+
     steps:
-      # ── Checkout ──────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ── Show environment ──────────────────────────────────────
       - name: Show build environment
         run: |
-          echo "=== Xcode ==="
           xcodebuild -version
-          echo ""
-          echo "=== SDK ==="
           xcrun --sdk iphoneos --show-sdk-path
-          xcrun --sdk iphoneos --show-sdk-version
-          echo ""
-          echo "=== clang ==="
-          clang --version
-          echo ""
-          echo "=== Architecture ==="
           uname -m
 
-      # ── Install tools ─────────────────────────────────────────
       - name: Install ldid
-        run: |
-          brew install ldid
-          ldid 2>&1 | head -1 || true
+        run: brew install ldid
 
-      # ── Download CydiaSubstrate ───────────────────────────────
-      - name: Download CydiaSubstrate
+      - name: Create CydiaSubstrate stub
         run: |
           mkdir -p deps/substrate
-          cd deps/substrate
-
-          # Download substrate header
-          cat > substrate.h << 'HEADER_EOF'
-          /*
-           * CydiaSubstrate.h — Minimal header for MSHookMessageEx
-           */
-          #ifndef SUBSTRATE_H
-          #define SUBSTRATE_H
-
-          #import <objc/runtime.h>
-          #import <objc/message.h>
-
-          #ifdef __cplusplus
-          extern "C" {
-          #endif
-
-          void MSHookMessageEx(Class _class, SEL message, IMP hook, IMP *old);
-          void MSHookFunction(void *symbol, void *hook, void **old);
-
-          #ifdef __cplusplus
-          }
-          #endif
-
-          #endif /* SUBSTRATE_H */
-          HEADER_EOF
-
-          # Create a stub libsubstrate.dylib
-          # On device, the real substrate is loaded — we just need link-time symbol
-          cat > substrate_stub.c << 'STUB_EOF'
-          #include <objc/runtime.h>
-          // Stub implementations — real ones come from device substrate
-          void MSHookMessageEx(Class _class, SEL message, IMP hook, IMP *old) {
-              if (old) *old = class_replaceMethod(_class, message, hook, NULL);
-          }
-          void MSHookFunction(void *symbol, void *hook, void **old) {}
-          STUB_EOF
-
-          # Compile stub for arm64
+          printf '#ifndef SUBSTRATE_H\n#define SUBSTRATE_H\n#import <objc/runtime.h>\n#import <objc/message.h>\n#ifdef __cplusplus\nextern "C" {\n#endif\nvoid MSHookMessageEx(Class _class, SEL message, IMP hook, IMP *old);\nvoid MSHookFunction(void *symbol, void *hook, void **old);\n#ifdef __cplusplus\n}\n#endif\n#endif\n' > deps/substrate/substrate.h
+          printf '#include <objc/runtime.h>\nvoid MSHookMessageEx(Class _class, SEL message, IMP hook, IMP *old) { if (old) *old = class_replaceMethod(_class, message, hook, NULL); }\nvoid MSHookFunction(void *symbol, void *hook, void **old) {}\n' > deps/substrate/substrate_stub.c
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
-                -dynamiclib -o libsubstrate.dylib substrate_stub.c \
+                -dynamiclib -o deps/substrate/libsubstrate.dylib deps/substrate/substrate_stub.c \
                 -framework Foundation -install_name /usr/lib/libsubstrate.dylib
-
           echo "[OK] CydiaSubstrate stub created"
-          ls -la
+          ls -la deps/substrate/
 
-      # ── Download librtmp ──────────────────────────────────────
-      - name: Download and compile librtmp
+      - name: Download librtmp
         run: |
-          # Clone rtmpdump
-          git clone --depth 1 https://git.ffmpeg.org/rtmpdump.git deps/rtmpdump || \
-          git clone --depth 1 https://github.com/mirror/rtmpdump.git deps/rtmpdump
+          git clone --depth 1 https://github.com/mirror/rtmpdump.git deps/rtmpdump || true
+          if [ -d deps/rtmpdump/librtmp ]; then
+            cp -r deps/rtmpdump/librtmp ./librtmp
+            echo "[OK] librtmp source ready"
+          else
+            mkdir -p librtmp
+            echo "[WARN] librtmp not found, creating empty placeholder"
+          fi
 
-          # Copy librtmp source into project
-          cp -r deps/rtmpdump/librtmp ./librtmp
-
-          echo "[OK] librtmp source ready"
-          ls librtmp/*.c | wc -l | xargs echo "  C files:"
-
-      # ── Update server URL (if provided) ──────────────────────
       - name: Update server URL
         if: github.event.inputs.server_url != '' && github.event.inputs.server_url != 'https://your-server.com'
         run: |
           SERVER_URL="${{ github.event.inputs.server_url }}"
           echo "Setting server URL to: ${SERVER_URL}"
+          sed -i '' "s|https://thitconmeo.bond|${SERVER_URL}|g" Shared/VcamConstants.h
           sed -i '' "s|https://your-server.com|${SERVER_URL}|g" Shared/VcamConstants.h
           grep "kVCServerBaseURL" Shared/VcamConstants.h
 
-      # ── Build Daemon dylib ────────────────────────────────────
       - name: Build VcamLumiereDaemon.dylib
         run: |
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           SUBSTRATE_DIR="$(pwd)/deps/substrate"
+          mkdir -p build
 
-          echo "══════════════════════════════════════════"
-          echo "  Building VcamLumiereDaemon.dylib"
-          echo "══════════════════════════════════════════"
-
-          # Collect librtmp C files
-          RTMP_SRCS=$(find librtmp -name "*.c" -not -name "sslstub.c" | tr '\n' ' ')
+          RTMP_SRCS=""
+          if ls librtmp/*.c 1>/dev/null 2>&1; then
+            RTMP_SRCS=$(find librtmp -name "*.c" -not -name "sslstub.c" | tr '\n' ' ')
+          fi
 
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
-                -fobjc-arc -fmodules -O2 -Wall \
+                -fobjc-arc -fmodules -O2 -Wall -Wno-unused-variable -Wno-unused-function \
                 -dynamiclib \
                 -install_name /Library/MobileSubstrate/DynamicLibraries/VcamLumiereDaemon.dylib \
                 -I"$SUBSTRATE_DIR" \
@@ -169,24 +94,16 @@ jobs:
                 -o build/VcamLumiereDaemon.dylib
 
           echo "[OK] VcamLumiereDaemon.dylib built"
-          ls -la build/VcamLumiereDaemon.dylib
-
-          # Sign
           ldid -Sentitlements.plist build/VcamLumiereDaemon.dylib
           echo "[OK] Signed"
 
-      # ── Build UI dylib ────────────────────────────────────────
       - name: Build VcamLumiereUI.dylib
         run: |
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           SUBSTRATE_DIR="$(pwd)/deps/substrate"
 
-          echo "══════════════════════════════════════════"
-          echo "  Building VcamLumiereUI.dylib"
-          echo "══════════════════════════════════════════"
-
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
-                -fobjc-arc -fmodules -O2 -Wall \
+                -fobjc-arc -fmodules -O2 -Wall -Wno-unused-variable -Wno-unused-function \
                 -dynamiclib \
                 -install_name /Library/MobileSubstrate/DynamicLibraries/VcamLumiereUI.dylib \
                 -I"$SUBSTRATE_DIR" \
@@ -203,55 +120,30 @@ jobs:
                 -o build/VcamLumiereUI.dylib
 
           echo "[OK] VcamLumiereUI.dylib built"
-          ls -la build/VcamLumiereUI.dylib
-
-          # Sign
           ldid -Sentitlements.plist build/VcamLumiereUI.dylib
           echo "[OK] Signed"
 
-      # ── Package .deb ──────────────────────────────────────────
       - name: Package .deb
         run: |
-          echo "══════════════════════════════════════════"
-          echo "  Packaging .deb"
-          echo "══════════════════════════════════════════"
-
-          # Install dpkg
           brew install dpkg
 
           STAGE="package/stage"
           mkdir -p "$STAGE/DEBIAN"
           mkdir -p "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries"
 
-          # Control file
           cp Layout/DEBIAN/control "$STAGE/DEBIAN/"
-
-          # Dylibs
           cp build/VcamLumiereDaemon.dylib "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
           cp build/VcamLumiereUI.dylib     "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
-
-          # Filter plists
           cp Layout/var/jb/Library/MobileSubstrate/DynamicLibraries/*.plist \
              "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
 
-          # Post-install script
-          cat > "$STAGE/DEBIAN/postinst" << 'SCRIPT'
-          #!/bin/bash
-          echo "[vcam] Restarting mediaserverd and SpringBoard..."
-          killall -9 mediaserverd 2>/dev/null || true
-          killall -9 SpringBoard 2>/dev/null || true
-          echo "[vcam] Done! SpringBoard will restart."
-          SCRIPT
+          printf '#!/bin/bash\nkillall -9 mediaserverd 2>/dev/null || true\nkillall -9 SpringBoard 2>/dev/null || true\n' > "$STAGE/DEBIAN/postinst"
           chmod 755 "$STAGE/DEBIAN/postinst"
 
-          # Build deb
           DEB_NAME="${PACKAGE_NAME}_${PACKAGE_VERSION}_iphoneos-arm.deb"
           dpkg-deb -Zxz --root-owner-group --build "$STAGE" "build/$DEB_NAME"
-
-          echo "[OK] build/$DEB_NAME"
           ls -la build/*.deb
 
-      # ── Upload artifacts ──────────────────────────────────────
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
@@ -267,18 +159,3 @@ jobs:
             build/VcamLumiereDaemon.dylib
             build/VcamLumiereUI.dylib
           retention-days: 30
-
-      # ── Summary ───────────────────────────────────────────────
-      - name: Build summary
-        run: |
-          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
-          for f in build/*.dylib build/*.deb; do
-            SIZE=$(ls -lh "$f" | awk '{print $5}')
-            NAME=$(basename "$f")
-            echo "| \`$NAME\` | $SIZE |" >> $GITHUB_STEP_SUMMARY
-          done
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Download from **Artifacts** section above." >> $GITHUB_STEP_SUMMARY
