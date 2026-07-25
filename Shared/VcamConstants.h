@@ -18,8 +18,8 @@
 
 #pragma mark - Plist Paths
 
-#define kVCPlistPath        @"/var/jb/var/mobile/vc.plist"
-#define kVCDebugLogPath     @"/var/jb/var/mobile/vcam_debug.log"
+#define kVCPlistPath        @"/var/mobile/vc.plist"
+#define kVCDebugLogPath     @"/var/mobile/vcam_debug.log"
 
 #pragma mark - Plist Keys (Runtime Config)
 

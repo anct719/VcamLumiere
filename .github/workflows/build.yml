@@ -35,9 +35,9 @@ jobs:
       - name: Build CydiaSubstrate stub dylib
         run: |
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
-          clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
+          clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=15.0 \
                 -dynamiclib -o deps/substrate/libsubstrate.dylib deps/substrate/substrate_stub.c \
-                -framework Foundation -install_name /usr/lib/libsubstrate.dylib
+                -framework Foundation -install_name @rpath/libsubstrate.dylib
           echo "[OK] CydiaSubstrate stub built"
 
       - name: Download and compile librtmp
@@ -55,7 +55,7 @@ jobs:
             base=$(basename "$f" .c)
             case "$base" in hashswf|sslstub) echo "  skip $base"; continue;; esac
             echo "  compile $base.c"
-            clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
+            clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=15.0 \
                   -DNO_SSL -DNO_CRYPTO -w -O2 -c "$f" -o "build/obj/${base}.o"
           done
           echo "[OK] librtmp compiled ($(ls build/obj/*.o | wc -l) objects)"
@@ -75,10 +75,12 @@ jobs:
           mkdir -p build
           RTMP_OBJS=$(find build/obj -name "*.o" 2>/dev/null | tr '\n' ' ')
           echo "Linking with librtmp objects: $RTMP_OBJS"
-          clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
+          clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=15.0 \
                 -fobjc-arc -fmodules -O2 -w \
                 -dynamiclib \
-                -install_name /Library/MobileSubstrate/DynamicLibraries/VcamLumiereDaemon.dylib \
+                -install_name @rpath/VcamLumiereDaemon.dylib \
+                -Wl,-rpath,/var/jb/usr/lib \
+                -Wl,-rpath,/var/jb/Library/Frameworks \
                 -I"$SUBSTRATE_DIR" -I"$(pwd)" \
                 -L"$SUBSTRATE_DIR" -lsubstrate \
                 Daemon/Tweak.m Daemon/VCamManager.m Daemon/RTMPClient.m Daemon/H264Decoder.m \
@@ -99,10 +101,12 @@ jobs:
         run: |
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           SUBSTRATE_DIR="$(pwd)/deps/substrate"
-          clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=14.0 \
+          clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=15.0 \
                 -fobjc-arc -fmodules -O2 -w \
                 -dynamiclib \
-                -install_name /Library/MobileSubstrate/DynamicLibraries/VcamLumiereUI.dylib \
+                -install_name @rpath/VcamLumiereUI.dylib \
+                -Wl,-rpath,/var/jb/usr/lib \
+                -Wl,-rpath,/var/jb/Library/Frameworks \
                 -I"$SUBSTRATE_DIR" -I"$(pwd)" \
                 -L"$SUBSTRATE_DIR" -lsubstrate \
                 UI/Tweak.m UI/VcamHelper.m UI/VcamLoginHelper.m \
@@ -118,6 +122,19 @@ jobs:
           ldid -Sentitlements.plist build/VcamLumiereUI.dylib
           echo "[OK] Signed"
 
+      - name: Verify rootless linkage
+        run: |
+          for dylib in build/VcamLumiereDaemon.dylib build/VcamLumiereUI.dylib; do
+            echo "Checking $dylib"
+            otool -D "$dylib"
+            otool -L "$dylib"
+            otool -l "$dylib" | grep -A2 LC_RPATH
+            if otool -L "$dylib" | grep -qE '/Library/MobileSubstrate|/usr/lib/libsubstrate'; then
+              echo "[ERR] Rootful dependency found in $dylib"
+              exit 1
+            fi
+          done
+
       - name: Package .deb
         run: |
           brew install dpkg
@@ -129,13 +146,18 @@ jobs:
           cp build/VcamLumiereUI.dylib     "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
           cp Layout/var/jb/Library/MobileSubstrate/DynamicLibraries/*.plist \
              "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
-          echo '#!/bin/bash' > "$STAGE/DEBIAN/postinst"
+          echo '#!/bin/sh' > "$STAGE/DEBIAN/postinst"
           echo 'echo "VcamLumiere installed. Please respring to activate."' >> "$STAGE/DEBIAN/postinst"
           chmod 755 "$STAGE/DEBIAN/postinst"
           echo 'SBReloadSpringBoard' > "$STAGE/DEBIAN/extrainst_"
           chmod 755 "$STAGE/DEBIAN/extrainst_"
-          DEB_NAME="${PACKAGE_NAME}_${PACKAGE_VERSION}_iphoneos-arm.deb"
+          DEB_NAME="${PACKAGE_NAME}_${PACKAGE_VERSION}_iphoneos-arm64.deb"
           dpkg-deb -Zxz --root-owner-group --build "$STAGE" "build/$DEB_NAME"
+          test "$(dpkg-deb -f "build/$DEB_NAME" Architecture)" = "iphoneos-arm64"
+          if dpkg-deb -c "build/$DEB_NAME" | grep -qE '^.*\./(Library|usr)/'; then
+            echo "[ERR] Rootful path found in $DEB_NAME"
+            exit 1
+          fi
           echo "[OK] .deb packaged"
           ls -la build/*.deb
 
