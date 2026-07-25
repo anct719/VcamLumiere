@@ -204,9 +204,9 @@ build_package() {
     # Build .deb
     dpkg-deb -Zxz --root-owner-group --build \
         "${STAGE}" \
-        "${OUTDIR}/com.lumiere.vcamlumiere_2.0.2_iphoneos-arm64.deb"
+        "${OUTDIR}/com.lumiere.vcamlumiere_2.0.2-local1_iphoneos-arm64.deb"
 
-    echo "  [OK] ${OUTDIR}/com.lumiere.vcamlumiere_2.0.2_iphoneos-arm64.deb"
+    echo "  [OK] ${OUTDIR}/com.lumiere.vcamlumiere_2.0.2-local1_iphoneos-arm64.deb"
     ls -la "${OUTDIR}/"*.deb
 }
 

@@ -20,6 +20,12 @@
 - (void)startPeriodicVerification {
     [self stopPeriodicVerification];
 
+#if VCAM_LOCAL_AUTH
+    VCLog(@"LiveVerifier: local auth mode");
+    [self verifyOnce];
+    return;
+#else
+
     VCLog(@"LiveVerifier: starting periodic verify (%.0fs interval)", kVCVerifyInterval);
 
     // Verify immediately
@@ -31,6 +37,7 @@
                                                selector:@selector(verifyOnce)
                                                userInfo:nil
                                                 repeats:YES];
+#endif
 }
 
 - (void)stopPeriodicVerification {
@@ -42,6 +49,19 @@
 }
 
 - (void)verifyOnce {
+#if VCAM_LOCAL_AUTH
+    NSDictionary *localAuth = [[VcamSharedAuth sharedInstance] readVerifiedAuth];
+    if (!localAuth) {
+        [self _handleRevocation:@"missing_local_auth"];
+        return;
+    }
+
+    if ([self.delegate respondsToSelector:@selector(verifierDidConfirmValid)]) {
+        [self.delegate verifierDidConfirmValid];
+    }
+    return;
+#else
+
     VcamSharedAuth *auth = [VcamSharedAuth sharedInstance];
 
     NSString *token = [auth readPlistToken];
@@ -125,6 +145,7 @@
         }
     }];
     [task resume];
+#endif
 }
 
 - (void)_handleRevocation:(NSString *)reason {

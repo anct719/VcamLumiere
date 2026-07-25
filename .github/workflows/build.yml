@@ -16,7 +16,7 @@ on:
 
 env:
   PACKAGE_NAME: com.lumiere.vcamlumiere
-  PACKAGE_VERSION: "2.0.2"
+  PACKAGE_VERSION: "2.0.2-local1"
   MONOCYPHER_COMMIT: ab2b16dd619ad5f6979a4fbe69cfa324a6fcc35f
 
 jobs:
@@ -203,6 +203,7 @@ jobs:
           test ! -e "$STAGE/DEBIAN/extrainst_"
           DEB_NAME="${PACKAGE_NAME}_${PACKAGE_VERSION}_iphoneos-arm64.deb"
           dpkg-deb -Zxz --root-owner-group --build "$STAGE" "build/$DEB_NAME"
+          test "$(dpkg-deb -f "build/$DEB_NAME" Version)" = "$PACKAGE_VERSION"
           test "$(dpkg-deb -f "build/$DEB_NAME" Architecture)" = "iphoneos-arm64"
           if dpkg-deb -c "build/$DEB_NAME" | grep -qE '^.*\./(Library|usr)/'; then
             echo "[ERR] Rootful path found in $DEB_NAME"

@@ -125,6 +125,13 @@ typedef CFStringRef (*MGCopyAnswer_t)(CFStringRef property);
         return nil;
     }
 
+#if VCAM_LOCAL_AUTH
+    if (![token hasPrefix:@"local-"]) {
+        VCLog(@"readVerifiedAuth: ignoring non-local token in local auth mode");
+        return nil;
+    }
+#endif
+
     return @{
         @"token":      token,
         @"signingKey": signingKey,

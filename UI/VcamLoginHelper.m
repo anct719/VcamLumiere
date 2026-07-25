@@ -32,6 +32,35 @@
         return;
     }
 
+#if VCAM_LOCAL_AUTH
+    if (![username isEqualToString:kVCLocalAuthUsername] ||
+        ![password isEqualToString:kVCLocalAuthPassword]) {
+        [self _notifyFailure:@"Invalid username or password"];
+        return;
+    }
+
+    VcamSharedAuth *localAuth = [VcamSharedAuth sharedInstance];
+    NSString *localDeviceID = [localAuth deviceFingerprint];
+    NSString *localToken = [NSString stringWithFormat:@"local-%@", [localAuth randomNonce]];
+    if (![localAuth writePlistAuthToken:localToken
+                             signingKey:kVCLocalAuthSigningKey
+                               deviceID:localDeviceID]) {
+        [self _notifyFailure:@"Unable to save authentication data"];
+        return;
+    }
+
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        CFSTR(kVCNotifyConfig),
+        NULL, NULL, true
+    );
+    VCLog(@"Local login success");
+    if ([self.delegate respondsToSelector:@selector(loginDidSucceed)]) {
+        [self.delegate loginDidSucceed];
+    }
+    return;
+#else
+
     VcamSharedAuth *auth = [VcamSharedAuth sharedInstance];
 
     // Build request body
@@ -164,12 +193,24 @@
     }];
 
     [task resume];
+#endif
 }
 
 #pragma mark - Logout
 
 - (void)doLogout {
     VcamSharedAuth *auth = [VcamSharedAuth sharedInstance];
+
+#if VCAM_LOCAL_AUTH
+    [auth clearPlistAuth];
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        CFSTR(kVCNotifyRevoked),
+        NULL, NULL, true
+    );
+    VCLog(@"Local logout complete");
+    return;
+#else
 
     NSString *token = [auth readPlistToken];
     NSString *deviceID = [auth readPlistDeviceID];
@@ -221,6 +262,7 @@
     );
 
     VCLog(@"Logout complete");
+#endif
 }
 
 @end

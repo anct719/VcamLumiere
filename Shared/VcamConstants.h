@@ -12,8 +12,8 @@
 
 #pragma mark - Version
 
-#define VCAM_VERSION        @"2.0.2"
-#define VCAM_BUILD          @"202"
+#define VCAM_VERSION        @"2.0.2-local1"
+#define VCAM_BUILD          @"2021"
 #define VCAM_DISPLAY_NAME   @"VcamLumiere"
 
 #pragma mark - Plist Paths
@@ -65,6 +65,12 @@
 #define kVCPlistIntegritySalt @"vcam-lumiere-integrity-2024"
 
 #pragma mark - Server Configuration
+
+// Temporary offline authentication for UI/stream testing.
+#define VCAM_LOCAL_AUTH          1
+#define kVCLocalAuthUsername     @"lumierephan"
+#define kVCLocalAuthPassword     @"123456"
+#define kVCLocalAuthSigningKey   @"8d2392c8b87c9779c819fc1a417f93dce5efdf5f0e4219344513813b0ac24b07"
 
 #define kVCServerBaseURL    @"https://thitconmeo.bond"
 #define kVCTLSCertificateSHA256Hex @"a669438409f6984a95296cf123c6a71d790cfc99218892bf6d9ed1b5551d9b28"
