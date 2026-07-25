@@ -1,4 +1,0 @@
-#!/bin/sh
-
-echo "VcamLumiere installed. Please respring if the UI does not appear."
-exit 0

@@ -40,6 +40,7 @@
 @property (nonatomic, strong) VcamLiveVerifier *liveVerifier;
 @property (nonatomic, strong) VcamVolumeObserver *volumeObserver;
 @property (nonatomic, strong) UIAlertController *loginProgressAlert;
+@property (nonatomic, strong) UIAlertController *loginAlert;
 @property (nonatomic, copy) NSString *pendingLoginUsername;
 
 @end
@@ -77,29 +78,16 @@
 #pragma mark - Window Setup
 
 - (void)showFloatingButton {
+    BOOL authenticated = [[VcamSharedAuth sharedInstance] readVerifiedAuth] != nil;
     if (self.window) {
-        if (self.liveSwitch.isOn) {
+        if (authenticated && self.liveSwitch.isOn) {
             [self.liveVerifier startPeriodicVerification];
         }
         return;
     }
 
     CGRect screenBounds = [UIScreen mainScreen].bounds;
-    UIWindowScene *activeScene = nil;
-    for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
-        if ([scene isKindOfClass:[UIWindowScene class]] &&
-            scene.activationState == UISceneActivationStateForegroundActive) {
-            activeScene = (UIWindowScene *)scene;
-            break;
-        }
-    }
-    if (activeScene) {
-        self.window = [[VcamPassthroughWindow alloc] initWithWindowScene:activeScene];
-        self.window.frame = activeScene.coordinateSpace.bounds;
-        screenBounds = self.window.bounds;
-    } else {
-        self.window = [[VcamPassthroughWindow alloc] initWithFrame:screenBounds];
-    }
+    self.window = [[VcamPassthroughWindow alloc] initWithFrame:screenBounds];
 
     // Create floating button
     CGFloat btnSize = 50;
@@ -136,7 +124,7 @@
 
     // Start volume observer
     [self.volumeObserver startObserving];
-    if (self.liveSwitch.isOn) {
+    if (authenticated && self.liveSwitch.isOn) {
         [self.liveVerifier startPeriodicVerification];
     }
 
@@ -325,6 +313,12 @@
 
 - (void)_floatButtonTapped {
     AudioServicesPlaySystemSound(1519);  // haptic
+
+    if (![[VcamSharedAuth sharedInstance] readVerifiedAuth]) {
+        [self showLoginAlert];
+        return;
+    }
+
     [self togglePanel];
 }
 
@@ -351,11 +345,7 @@
     self.panelVisible = NO;
     self.settingsPanel.hidden = YES;
 
-    // Show login again after a short delay
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        [self showLoginAlert];
-    });
+    VCLog(@"Logged out; waiting for the floating button to be tapped");
 }
 
 #pragma mark - Config Changes
@@ -426,10 +416,13 @@
     // Check if already authenticated
     NSDictionary *auth = [[VcamSharedAuth sharedInstance] readVerifiedAuth];
     if (auth) {
-        VCLog(@"Already authenticated, showing UI");
+        VCLog(@"Already authenticated, opening main panel");
         [self showFloatingButton];
+        if (!self.panelVisible) [self togglePanel];
         return;
     }
+
+    if (self.loginAlert.presentingViewController) return;
 
     if (![self _topViewController]) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
@@ -471,6 +464,7 @@
         alertControllerWithTitle:@"Login @lumierephan"
                          message:error
                   preferredStyle:UIAlertControllerStyleAlert];
+    self.loginAlert = alert;
 
     [alert addTextFieldWithConfigurationHandler:^(UITextField *tf) {
         tf.placeholder = @"Username";
@@ -486,12 +480,15 @@
 
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel"
                                               style:UIAlertActionStyleCancel
-                                            handler:nil]];
+                                            handler:^(UIAlertAction *action) {
+        self.loginAlert = nil;
+    }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Confirm"
                                               style:UIAlertActionStyleDefault
                                             handler:^(UIAlertAction *action) {
         NSString *username = alert.textFields[0].text;
         NSString *password = alert.textFields[1].text;
+        self.loginAlert = nil;
         self.pendingLoginUsername = username;
         dispatch_async(dispatch_get_main_queue(), ^{
             [self _showLoginProgressWithCompletion:^{
@@ -531,6 +528,7 @@
         self.loginProgressAlert = nil;
         self.pendingLoginUsername = nil;
         [self showFloatingButton];
+        if (!self.panelVisible) [self togglePanel];
     };
     if (self.loginProgressAlert.presentingViewController) {
         [self.loginProgressAlert dismissViewControllerAnimated:YES completion:completion];
@@ -568,8 +566,9 @@
     [alert addAction:[UIAlertAction actionWithTitle:@"OK"
                                               style:UIAlertActionStyleDefault
                                             handler:^(UIAlertAction *action) {
-        [self hideFloatingButton];
-        [self showLoginAlert];
+        self.panelVisible = NO;
+        self.settingsPanel.hidden = YES;
+        [self showFloatingButton];
     }]];
 
     [[self _topViewController] presentViewController:alert animated:YES completion:nil];

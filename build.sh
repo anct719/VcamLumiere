@@ -191,10 +191,7 @@ build_package() {
     mkdir -p "${STAGE}/var/jb/Library/MobileSubstrate/DynamicLibraries"
 
     # Copy control file
-    cp Layout/DEBIAN/* "${STAGE}/DEBIAN/"
-    chmod 755 "${STAGE}/DEBIAN/postinst" "${STAGE}/DEBIAN/extrainst_"
-    sh -n "${STAGE}/DEBIAN/postinst"
-    sh -n "${STAGE}/DEBIAN/extrainst_"
+    cp Layout/DEBIAN/control "${STAGE}/DEBIAN/"
 
     # Copy dylibs
     cp "${OUTDIR}/VcamLumiereDaemon.dylib" "${STAGE}/var/jb/Library/MobileSubstrate/DynamicLibraries/"
@@ -207,9 +204,9 @@ build_package() {
     # Build .deb
     dpkg-deb -Zxz --root-owner-group --build \
         "${STAGE}" \
-        "${OUTDIR}/com.lumiere.vcamlumiere_2.0.3_iphoneos-arm64.deb"
+        "${OUTDIR}/com.lumiere.vcamlumiere_2.0.2_iphoneos-arm64.deb"
 
-    echo "  [OK] ${OUTDIR}/com.lumiere.vcamlumiere_2.0.3_iphoneos-arm64.deb"
+    echo "  [OK] ${OUTDIR}/com.lumiere.vcamlumiere_2.0.2_iphoneos-arm64.deb"
     ls -la "${OUTDIR}/"*.deb
 }
 
