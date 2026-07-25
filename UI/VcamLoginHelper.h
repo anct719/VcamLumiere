@@ -14,8 +14,11 @@
 
 @property (nonatomic, weak) id<VcamLoginDelegate> delegate;
 
-- (void)doLoginWithUsername:(NSString *)username
-                   password:(NSString *)password;
+- (void)doLogin:(UIViewController *)vc
+       username:(NSString *)username
+       password:(NSString *)password
+          error:(UILabel *)errorLabel
+        spinner:(UIActivityIndicatorView *)spinner;
 
 - (void)doLogout;
 

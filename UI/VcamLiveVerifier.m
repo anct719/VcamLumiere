@@ -61,7 +61,6 @@
     }
     return;
 #else
-
     VcamSharedAuth *auth = [VcamSharedAuth sharedInstance];
 
     NSString *token = [auth readPlistToken];
@@ -150,7 +149,6 @@
 
 - (void)_handleRevocation:(NSString *)reason {
     [self stopPeriodicVerification];
-    [[VcamSharedAuth sharedInstance] clearPlistAuth];
 
     // Post revocation notification
     CFNotificationCenterPostNotification(

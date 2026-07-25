@@ -16,7 +16,7 @@ on:
 
 env:
   PACKAGE_NAME: com.lumiere.vcamlumiere
-  PACKAGE_VERSION: "2.0.2-local1"
+  PACKAGE_VERSION: "2.0.2-local2"
   MONOCYPHER_COMMIT: ab2b16dd619ad5f6979a4fbe69cfa324a6fcc35f
 
 jobs:

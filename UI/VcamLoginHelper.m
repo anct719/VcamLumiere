@@ -18,37 +18,45 @@
 
 #pragma mark - Login
 
-- (void)_notifyFailure:(NSString *)message {
-    if ([self.delegate respondsToSelector:@selector(loginDidFailWithError:)]) {
-        [self.delegate loginDidFailWithError:message];
-    }
-}
-
-- (void)doLoginWithUsername:(NSString *)username
-                   password:(NSString *)password {
+- (void)doLogin:(UIViewController *)vc
+       username:(NSString *)username
+       password:(NSString *)password
+          error:(UILabel *)errorLabel
+        spinner:(UIActivityIndicatorView *)spinner {
 
     if (username.length == 0 || password.length == 0) {
-        [self _notifyFailure:@"Username and password required"];
+        errorLabel.text = @"Username and password required";
+        errorLabel.hidden = NO;
         return;
     }
+
+    // Show spinner
+    [spinner startAnimating];
+    errorLabel.hidden = YES;
+
+    VcamSharedAuth *auth = [VcamSharedAuth sharedInstance];
 
 #if VCAM_LOCAL_AUTH
     if (![username isEqualToString:kVCLocalAuthUsername] ||
         ![password isEqualToString:kVCLocalAuthPassword]) {
-        [self _notifyFailure:@"Invalid username or password"];
+        [spinner stopAnimating];
+        errorLabel.text = @"Invalid username or password";
+        errorLabel.hidden = NO;
         return;
     }
 
-    VcamSharedAuth *localAuth = [VcamSharedAuth sharedInstance];
-    NSString *localDeviceID = [localAuth deviceFingerprint];
-    NSString *localToken = [NSString stringWithFormat:@"local-%@", [localAuth randomNonce]];
-    if (![localAuth writePlistAuthToken:localToken
-                             signingKey:kVCLocalAuthSigningKey
-                               deviceID:localDeviceID]) {
-        [self _notifyFailure:@"Unable to save authentication data"];
+    NSString *deviceID = [auth deviceFingerprint];
+    NSString *token = [NSString stringWithFormat:@"local-%@", [auth randomNonce]];
+    if (![auth writePlistAuthToken:token
+                        signingKey:kVCLocalAuthSigningKey
+                          deviceID:deviceID]) {
+        [spinner stopAnimating];
+        errorLabel.text = @"Unable to save authentication data";
+        errorLabel.hidden = NO;
         return;
     }
 
+    [spinner stopAnimating];
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
         CFSTR(kVCNotifyConfig),
@@ -60,8 +68,6 @@
     }
     return;
 #else
-
-    VcamSharedAuth *auth = [VcamSharedAuth sharedInstance];
 
     // Build request body
     NSString *fingerprint = [auth deviceFingerprint];
@@ -83,7 +89,9 @@
                                                       options:0
                                                         error:&jsonErr];
     if (jsonErr) {
-        [self _notifyFailure:@"Internal error (JSON)"];
+        errorLabel.text = @"Internal error (JSON)";
+        errorLabel.hidden = NO;
+        [spinner stopAnimating];
         return;
     }
 
@@ -109,10 +117,13 @@
         completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
 
         dispatch_async(dispatch_get_main_queue(), ^{
+            [spinner stopAnimating];
+
             if (error) {
                 VCLog(@"Login network error: %@", error.localizedDescription);
-                [self _notifyFailure:[NSString stringWithFormat:@"Network error: %@",
-                                     error.localizedDescription]];
+                errorLabel.text = [NSString stringWithFormat:@"Network error: %@",
+                                   error.localizedDescription];
+                errorLabel.hidden = NO;
                 return;
             }
 
@@ -123,14 +134,19 @@
                                                                 options:0
                                                                   error:nil];
             if (!json) {
-                [self _notifyFailure:@"Invalid server response"];
+                errorLabel.text = @"Invalid server response";
+                errorLabel.hidden = NO;
                 return;
             }
 
             // Check for error
             NSString *errMsg = json[@"error"];
             if (errMsg) {
-                [self _notifyFailure:errMsg];
+                errorLabel.text = errMsg;
+                errorLabel.hidden = NO;
+                if ([self.delegate respondsToSelector:@selector(loginDidFailWithError:)]) {
+                    [self.delegate loginDidFailWithError:errMsg];
+                }
                 return;
             }
 
@@ -138,7 +154,8 @@
             NSString *nonceEcho = json[@"nonce_echo"];
             if (!nonceEcho || ![nonceEcho isEqualToString:sentNonce]) {
                 VCLog(@"Login: nonce echo mismatch!");
-                [self _notifyFailure:@"Security error (nonce)"];
+                errorLabel.text = @"Security error (nonce)";
+                errorLabel.hidden = NO;
                 return;
             }
 
@@ -146,7 +163,8 @@
             NSNumber *serverTs = json[@"server_ts"];
             if (![auth isFreshServerTs:serverTs maxSkew:kVCMaxTimestampSkew]) {
                 VCLog(@"Login: stale server timestamp");
-                [self _notifyFailure:@"Security error (timestamp)"];
+                errorLabel.text = @"Security error (timestamp)";
+                errorLabel.hidden = NO;
                 return;
             }
 
@@ -156,7 +174,8 @@
                                              fields:nil];
             if (!sigValid) {
                 VCLog(@"Login: response signature invalid!");
-                [self _notifyFailure:@"Security error (signature)"];
+                errorLabel.text = @"Security error (signature)";
+                errorLabel.hidden = NO;
                 return;
             }
 
@@ -165,17 +184,15 @@
             NSString *signingKey = json[@"signing_key"];
 
             if (!token || !signingKey) {
-                [self _notifyFailure:@"Invalid server response (missing fields)"];
+                errorLabel.text = @"Invalid server response (missing fields)";
+                errorLabel.hidden = NO;
                 return;
             }
 
             // Store auth data
-            if (![auth writePlistAuthToken:token
-                                signingKey:signingKey
-                                  deviceID:deviceID]) {
-                [self _notifyFailure:@"Unable to save authentication data"];
-                return;
-            }
+            [auth writePlistAuthToken:token
+                           signingKey:signingKey
+                             deviceID:deviceID];
 
             VCLog(@"Login success! Token stored.");
 

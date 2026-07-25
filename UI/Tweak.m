@@ -29,17 +29,27 @@ static void hooked_didFinishLaunching(id self, SEL _cmd, UIApplication *applicat
 
     VCLog(@"SpringBoard did finish launching");
 
+    // Anti-hook check
     if ([[VcamAntiHook sharedInstance] isCompromised]) {
         VCLog(@"[vc-antihook] compromised -> refusing to show UI");
         return;
     }
 
+    // Delay init slightly to ensure SpringBoard is fully ready
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
+
         VCLog(@"Initializing VcamLumiere UI...");
 
-        // Authentication is requested only after the floating button is tapped.
-        [[VcamHelper sharedInstance] showFloatingButton];
+        // Check if user is already authenticated
+        NSDictionary *auth = [[VcamSharedAuth sharedInstance] readVerifiedAuth];
+        if (auth) {
+            // Already logged in — show floating button
+            [[VcamHelper sharedInstance] showFloatingButton];
+        } else {
+            // Not logged in — show login prompt
+            [[VcamHelper sharedInstance] showFloatingButton];
+        }
     });
 }
 

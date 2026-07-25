@@ -12,8 +12,8 @@
 
 #pragma mark - Version
 
-#define VCAM_VERSION        @"2.0.2-local1"
-#define VCAM_BUILD          @"2021"
+#define VCAM_VERSION        @"2.0.2-local2"
+#define VCAM_BUILD          @"2022"
 #define VCAM_DISPLAY_NAME   @"VcamLumiere"
 
 #pragma mark - Plist Paths

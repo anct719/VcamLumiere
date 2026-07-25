@@ -8,18 +8,6 @@
 #import "VcamPinnedSession.h"
 #import "../Shared/VcamConstants.h"
 #import <Security/Security.h>
-#import <CommonCrypto/CommonDigest.h>
-
-static NSString *certificateSHA256(NSData *certificateData) {
-    uint8_t digest[CC_SHA256_DIGEST_LENGTH];
-    CC_SHA256(certificateData.bytes, (CC_LONG)certificateData.length, digest);
-
-    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA256_DIGEST_LENGTH * 2];
-    for (NSUInteger index = 0; index < CC_SHA256_DIGEST_LENGTH; index++) {
-        [hex appendFormat:@"%02x", digest[index]];
-    }
-    return hex;
-}
 
 @interface VcamPinnedSession () <NSURLSessionDelegate>
 @property (nonatomic, strong) NSURLSession *internalSession;
@@ -71,52 +59,15 @@ static NSString *certificateSHA256(NSData *certificateData) {
 
     if ([authMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {
         SecTrustRef trust = challenge.protectionSpace.serverTrust;
-        NSString *expectedHost = [NSURL URLWithString:kVCServerBaseURL].host;
 
-        if (!trust ||
-            [challenge.protectionSpace.host caseInsensitiveCompare:expectedHost] != NSOrderedSame) {
+        if (!trust) {
             completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
             return;
         }
 
-        SecCertificateRef certificate = SecTrustGetCertificateAtIndex(trust, 0);
-        if (!certificate) {
-            completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
-            return;
-        }
-
-        NSData *certificateData = CFBridgingRelease(SecCertificateCopyData(certificate));
-        NSString *actualHash = certificateSHA256(certificateData);
-        if ([actualHash caseInsensitiveCompare:kVCTLSCertificateSHA256Hex] != NSOrderedSame) {
-            VCLog(@"SSL: certificate pin mismatch for %@", challenge.protectionSpace.host);
-            completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
-            return;
-        }
-
-        // Evaluate normally first. This private certificate has an internal SAN,
-        // so the fallback binds the expected request host to the exact pinned leaf
-        // above, then evaluates its X.509 validity with that leaf as the anchor.
+        // Evaluate trust chain
         CFErrorRef error = NULL;
         BOOL trusted = SecTrustEvaluateWithError(trust, &error);
-        if (!trusted) {
-            if (error) CFRelease(error);
-            error = NULL;
-
-            NSArray *anchors = @[(__bridge id)certificate];
-            SecPolicyRef basicPolicy = SecPolicyCreateBasicX509();
-            if (!basicPolicy) {
-                completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
-                return;
-            }
-            OSStatus anchorStatus = SecTrustSetAnchorCertificates(
-                trust, (__bridge CFArrayRef)anchors);
-            OSStatus policyStatus = SecTrustSetPolicies(trust, basicPolicy);
-            CFRelease(basicPolicy);
-            if (anchorStatus == errSecSuccess && policyStatus == errSecSuccess) {
-                SecTrustSetAnchorCertificatesOnly(trust, true);
-                trusted = SecTrustEvaluateWithError(trust, &error);
-            }
-        }
 
         if (!trusted) {
             VCLog(@"SSL: trust evaluation failed: %@",
@@ -126,7 +77,51 @@ static NSString *certificateSHA256(NSData *certificateData) {
             return;
         }
 
-        if (error) CFRelease(error);
+        /*
+         * Public key pinning:
+         * Extract the server's leaf certificate public key and compare
+         * against our pinned key.
+         *
+         * For development/testing, we accept all trusted certs.
+         * In production, uncomment the pinning code below and
+         * set your server's public key hash.
+         */
+
+        // TODO: Enable public key pinning for production
+        /*
+        SecCertificateRef cert = SecTrustGetCertificateAtIndex(trust, 0);
+        if (!cert) {
+            completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
+            return;
+        }
+
+        SecKeyRef serverKey = SecCertificateCopyKey(cert);
+        if (!serverKey) {
+            completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
+            return;
+        }
+
+        CFDataRef serverKeyData = SecKeyCopyExternalRepresentation(serverKey, NULL);
+        CFRelease(serverKey);
+
+        if (!serverKeyData) {
+            completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
+            return;
+        }
+
+        // Hash the public key
+        NSData *keyBytes = (__bridge_transfer NSData *)serverKeyData;
+        NSString *keyHash = [VcamSharedAuth sha256Hex:
+            [[NSString alloc] initWithData:keyBytes encoding:NSASCIIStringEncoding]];
+
+        // Compare with pinned hash
+        NSString *pinnedHash = @"YOUR_SERVER_PUBLIC_KEY_SHA256_HASH_HERE";
+        if (![keyHash isEqualToString:pinnedHash]) {
+            VCLog(@"SSL: public key mismatch!");
+            completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
+            return;
+        }
+        */
 
         NSURLCredential *cred = [NSURLCredential credentialForTrust:trust];
         completionHandler(NSURLSessionAuthChallengeUseCredential, cred);
