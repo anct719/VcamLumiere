@@ -129,6 +129,7 @@
 
 - (void)_handleRevocation:(NSString *)reason {
     [self stopPeriodicVerification];
+    [[VcamSharedAuth sharedInstance] clearPlistAuth];
 
     // Post revocation notification
     CFNotificationCenterPostNotification(

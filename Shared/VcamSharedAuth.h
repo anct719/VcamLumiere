@@ -14,7 +14,7 @@
 
 #pragma mark - Plist Auth CRUD
 
-- (void)writePlistAuthToken:(NSString *)token
+- (BOOL)writePlistAuthToken:(NSString *)token
                  signingKey:(NSString *)signingKey
                    deviceID:(NSString *)deviceID;
 - (NSString *)readPlistToken;

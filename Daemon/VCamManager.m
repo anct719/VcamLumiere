@@ -21,6 +21,8 @@
 @property (nonatomic, strong) RTMPClient *rtmpClient;
 @property (nonatomic, copy) NSString *rtmpURL;
 @property (nonatomic, assign) BOOL enabled;
+@property (nonatomic, strong) NSLock *pixelBufferLock;
+@property (nonatomic, assign) CVPixelBufferRef currentPixelBuffer;
 
 @end
 
@@ -41,6 +43,7 @@
         _isLive = NO;
         _hasFirstFrame = NO;
         _currentPixelBuffer = NULL;
+        _pixelBufferLock = [[NSLock alloc] init];
 
         [self _registerNotifications];
         [self reloadConfig];
@@ -79,6 +82,7 @@
     // Anti-hook check
     if ([[VcamAntiHook sharedInstance] isCompromised]) {
         VCLog(@"[vc-antihook] compromised -> killing stream");
+        [self stop];
         return;
     }
 
@@ -86,6 +90,7 @@
     NSDictionary *auth = [[VcamSharedAuth sharedInstance] readVerifiedAuth];
     if (!auth) {
         VCLog(@"license check FAILED reason=missing_auth, refusing to start");
+        [self stop];
         return;
     }
 
@@ -94,25 +99,35 @@
     self.rtmpURL = url;
 
     if (self.rtmpClient) {
-        [self.rtmpClient stop];
+        [self stop];
     }
 
-    self.rtmpClient = [[RTMPClient alloc] init];
-    self.rtmpClient.delegate = self;
+    RTMPClient *client = [[RTMPClient alloc] init];
+    self.rtmpClient = client;
+    client.delegate = self;
 
     // Set up decoder callback
     __weak typeof(self) weakSelf = self;
-    self.rtmpClient.decoder.onFrame = ^(CVPixelBufferRef pixelBuffer, CMTime pts) {
+    __weak RTMPClient *weakClient = client;
+    client.decoder.onFrame = ^(CVPixelBufferRef pixelBuffer, CMTime pts) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf) return;
+        if (!strongSelf || strongSelf.rtmpClient != weakClient) return;
 
         CVPixelBufferRetain(pixelBuffer);
-        CVPixelBufferRef old = strongSelf.currentPixelBuffer;
-        strongSelf.currentPixelBuffer = pixelBuffer;
+        [strongSelf.pixelBufferLock lock];
+        if (!strongSelf->_isLive) {
+            [strongSelf.pixelBufferLock unlock];
+            CVPixelBufferRelease(pixelBuffer);
+            return;
+        }
+        CVPixelBufferRef old = strongSelf->_currentPixelBuffer;
+        strongSelf->_currentPixelBuffer = pixelBuffer;
+        BOOL isFirstFrame = !strongSelf->_hasFirstFrame;
+        strongSelf->_hasFirstFrame = YES;
+        [strongSelf.pixelBufferLock unlock];
         if (old) CVPixelBufferRelease(old);
 
-        if (!strongSelf.hasFirstFrame) {
-            strongSelf->_hasFirstFrame = YES;
+        if (isFirstFrame) {
             VCLog(@"[VCamManager] First valid frame -> notify firstframe");
             CFNotificationCenterPostNotification(
                 CFNotificationCenterGetDarwinNotifyCenter(),
@@ -122,29 +137,41 @@
         }
     };
 
+    [self.pixelBufferLock lock];
     _isLive = YES;
-    [self.rtmpClient startWithRTMPURL:url];
+    [self.pixelBufferLock unlock];
+    [client startWithRTMPURL:url];
 }
 
 - (void)stop {
+    [self.pixelBufferLock lock];
     _isLive = NO;
     _hasFirstFrame = NO;
+    CVPixelBufferRef old = _currentPixelBuffer;
+    _currentPixelBuffer = NULL;
+    [self.pixelBufferLock unlock];
+    if (old) CVPixelBufferRelease(old);
 
     if (self.rtmpClient) {
         [self.rtmpClient stop];
         self.rtmpClient = nil;
     }
 
-    CVPixelBufferRef old = self.currentPixelBuffer;
-    self.currentPixelBuffer = NULL;
-    if (old) CVPixelBufferRelease(old);
-
     VCLog(@"VCamManager: stopped");
+}
+
+- (CVPixelBufferRef)copyCurrentPixelBuffer {
+    [self.pixelBufferLock lock];
+    CVPixelBufferRef pixelBuffer = _isLive ? _currentPixelBuffer : NULL;
+    if (pixelBuffer) CVPixelBufferRetain(pixelBuffer);
+    [self.pixelBufferLock unlock];
+    return pixelBuffer;
 }
 
 #pragma mark - RTMPClientDelegate
 
 - (void)rtmpClientDidConnect:(id)client {
+    if (client != self.rtmpClient) return;
     VCLog(@"VCamManager: RTMP connected");
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
@@ -154,8 +181,11 @@
 }
 
 - (void)rtmpClientDidDisconnect:(id)client reason:(NSString *)reason {
+    if (client != self.rtmpClient) return;
     VCLog(@"VCamManager: RTMP disconnected: %@", reason);
+    [self.pixelBufferLock lock];
     _hasFirstFrame = NO;
+    [self.pixelBufferLock unlock];
 }
 
 - (void)rtmpClient:(id)client didReceiveVideoFrame:(CVPixelBufferRef)pixelBuffer {
@@ -163,6 +193,7 @@
 }
 
 - (void)rtmpClient:(id)client didFailWithError:(NSString *)error {
+    if (client != self.rtmpClient) return;
     VCLog(@"VCamManager: RTMP error: %@", error);
 }
 

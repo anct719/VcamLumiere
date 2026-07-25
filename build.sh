@@ -17,6 +17,7 @@
 #   SUBSTRATE_DIR - directory containing libsubstrate.dylib
 #                   (default: /var/jb/usr/lib)
 #   LIBRTMP_DIR   - path to compiled librtmp (default: ./librtmp)
+#   MONOCYPHER_DIR - path to Monocypher source (default: ./deps/monocypher)
 #
 
 set -e
@@ -41,10 +42,12 @@ CC="clang"
 ROOTLESS_PREFIX="${ROOTLESS_PREFIX:-/var/jb}"
 SUBSTRATE_DIR="${SUBSTRATE_DIR:-${ROOTLESS_PREFIX}/usr/lib}"
 LIBRTMP_DIR="${LIBRTMP_DIR:-./librtmp}"
+MONOCYPHER_DIR="${MONOCYPHER_DIR:-./deps/monocypher}"
 
 # Common flags
 CFLAGS="-arch ${ARCHS} -isysroot ${SDKROOT} -miphoneos-version-min=${MIN_IOS}"
-CFLAGS="${CFLAGS} -fobjc-arc -fmodules -O2 -Wall"
+CFLAGS="${CFLAGS} -O2 -Wall"
+OBJCFLAGS="${CFLAGS} -fobjc-arc -fmodules"
 LDFLAGS="-arch ${ARCHS} -isysroot ${SDKROOT} -miphoneos-version-min=${MIN_IOS}"
 LDFLAGS="${LDFLAGS} -dynamiclib"
 LDFLAGS="${LDFLAGS} -Wl,-rpath,${ROOTLESS_PREFIX}/usr/lib"
@@ -58,6 +61,24 @@ mkdir -p "${OUTDIR}"
 # ── Shared source files ───────────────────────────────────────────────
 
 SHARED_SRC="Shared/VcamSharedAuth.m Shared/VcamAntiHook.m"
+
+build_crypto() {
+    MONOCYPHER_CORE="${MONOCYPHER_DIR}/src/monocypher.c"
+    MONOCYPHER_ED25519="${MONOCYPHER_DIR}/src/optional/monocypher-ed25519.c"
+    if [ ! -f "${MONOCYPHER_CORE}" ] || [ ! -f "${MONOCYPHER_ED25519}" ]; then
+        echo "  [ERROR] Monocypher source not found at ${MONOCYPHER_DIR}"
+        echo "          Clone https://github.com/LoupVaillant/Monocypher.git there."
+        exit 1
+    fi
+
+    mkdir -p "${OUTDIR}/obj"
+    ${CC} ${CFLAGS} -std=c99 -I"${MONOCYPHER_DIR}/src" \
+        -c "${MONOCYPHER_CORE}" -o "${OUTDIR}/obj/monocypher.o"
+    ${CC} ${CFLAGS} -std=c99 \
+        -I"${MONOCYPHER_DIR}/src" -I"${MONOCYPHER_DIR}/src/optional" \
+        -c "${MONOCYPHER_ED25519}" -o "${OUTDIR}/obj/monocypher-ed25519.o"
+    CRYPTO_OBJS="${OUTDIR}/obj/monocypher.o ${OUTDIR}/obj/monocypher-ed25519.o"
+}
 
 # ── Build Daemon ──────────────────────────────────────────────────────
 
@@ -74,25 +95,39 @@ build_daemon() {
     DAEMON_FRAMEWORKS="${DAEMON_FRAMEWORKS} -framework CFNetwork -framework ImageIO"
     DAEMON_FRAMEWORKS="${DAEMON_FRAMEWORKS} -framework QuartzCore -framework UIKit"
 
-    # librtmp (compiled C source)
-    RTMP_SRC=""
-    if [ -d "${LIBRTMP_DIR}" ]; then
-        RTMP_SRC=$(find "${LIBRTMP_DIR}" -name "*.c" | tr '\n' ' ')
-        echo "  librtmp sources: $(echo ${RTMP_SRC} | wc -w | tr -d ' ') files"
-    else
-        echo "  [WARN] librtmp dir not found at ${LIBRTMP_DIR}"
-        echo "         Download from: https://rtmpdump.mber.com/"
-        echo "         Building without RTMP support."
+    build_crypto
+
+    if [ ! -d "${LIBRTMP_DIR}" ]; then
+        echo "  [ERROR] librtmp source not found at ${LIBRTMP_DIR}"
+        echo "          Clone https://github.com/mirror/rtmpdump.git and point LIBRTMP_DIR to its librtmp directory."
+        exit 1
     fi
 
-    ${CC} ${CFLAGS} ${LDFLAGS} \
+    RTMP_OBJS=""
+    for source in "${LIBRTMP_DIR}"/*.c; do
+        [ -f "${source}" ] || continue
+        base=$(basename "${source}" .c)
+        case "${base}" in
+            hashswf|sslstub) continue ;;
+        esac
+        object="${OUTDIR}/obj/rtmp-${base}.o"
+        ${CC} ${CFLAGS} -DNO_SSL -DNO_CRYPTO -w -c "${source}" -o "${object}"
+        RTMP_OBJS="${RTMP_OBJS} ${object}"
+    done
+    if [ -z "${RTMP_OBJS}" ]; then
+        echo "  [ERROR] No librtmp C sources found at ${LIBRTMP_DIR}"
+        exit 1
+    fi
+
+    ${CC} ${OBJCFLAGS} ${LDFLAGS} \
         -install_name @rpath/VcamLumiereDaemon.dylib \
-        ${DAEMON_SRC} ${SHARED_SRC} ${RTMP_SRC} \
+        ${DAEMON_SRC} ${SHARED_SRC} ${RTMP_OBJS} ${CRYPTO_OBJS} \
         ${DAEMON_FRAMEWORKS} \
         -lz \
         -lsubstrate \
         -L"${SUBSTRATE_DIR}" \
         -I"${LIBRTMP_DIR}/.." \
+        -I"${MONOCYPHER_DIR}/src" -I"${MONOCYPHER_DIR}/src/optional" \
         -o "${OUTDIR}/VcamLumiereDaemon.dylib"
 
     echo "  [OK] ${OUTDIR}/VcamLumiereDaemon.dylib"
@@ -121,12 +156,15 @@ build_ui() {
     UI_FRAMEWORKS="${UI_FRAMEWORKS} -framework Security -framework AVFoundation"
     UI_FRAMEWORKS="${UI_FRAMEWORKS} -framework CoreGraphics -framework QuartzCore"
 
-    ${CC} ${CFLAGS} ${LDFLAGS} \
+    build_crypto
+
+    ${CC} ${OBJCFLAGS} ${LDFLAGS} \
         -install_name @rpath/VcamLumiereUI.dylib \
-        ${UI_SRC} ${SHARED_SRC} \
+        ${UI_SRC} ${SHARED_SRC} ${CRYPTO_OBJS} \
         ${UI_FRAMEWORKS} \
         -lsubstrate \
         -L"${SUBSTRATE_DIR}" \
+        -I"${MONOCYPHER_DIR}/src" -I"${MONOCYPHER_DIR}/src/optional" \
         -o "${OUTDIR}/VcamLumiereUI.dylib"
 
     echo "  [OK] ${OUTDIR}/VcamLumiereUI.dylib"
@@ -166,9 +204,9 @@ build_package() {
     # Build .deb
     dpkg-deb -Zxz --root-owner-group --build \
         "${STAGE}" \
-        "${OUTDIR}/com.lumiere.vcamlumiere_2.0.0_iphoneos-arm64.deb"
+        "${OUTDIR}/com.lumiere.vcamlumiere_2.0.1_iphoneos-arm64.deb"
 
-    echo "  [OK] ${OUTDIR}/com.lumiere.vcamlumiere_2.0.0_iphoneos-arm64.deb"
+    echo "  [OK] ${OUTDIR}/com.lumiere.vcamlumiere_2.0.1_iphoneos-arm64.deb"
     ls -la "${OUTDIR}/"*.deb
 }
 

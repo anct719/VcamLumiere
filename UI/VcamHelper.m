@@ -39,6 +39,8 @@
 @property (nonatomic, strong) VcamLoginHelper *loginHelper;
 @property (nonatomic, strong) VcamLiveVerifier *liveVerifier;
 @property (nonatomic, strong) VcamVolumeObserver *volumeObserver;
+@property (nonatomic, strong) UIAlertController *loginProgressAlert;
+@property (nonatomic, copy) NSString *pendingLoginUsername;
 
 @end
 
@@ -75,7 +77,12 @@
 #pragma mark - Window Setup
 
 - (void)showFloatingButton {
-    if (self.window) return;
+    if (self.window) {
+        if (self.liveSwitch.isOn) {
+            [self.liveVerifier startPeriodicVerification];
+        }
+        return;
+    }
 
     CGRect screenBounds = [UIScreen mainScreen].bounds;
     self.window = [[VcamPassthroughWindow alloc] initWithFrame:screenBounds];
@@ -115,6 +122,9 @@
 
     // Start volume observer
     [self.volumeObserver startObserving];
+    if (self.liveSwitch.isOn) {
+        [self.liveVerifier startPeriodicVerification];
+    }
 
     // Start shake animation
     [self _addShakeAnimation];
@@ -407,13 +417,42 @@
         return;
     }
 
+    [self _showLoginAlertWithError:nil];
+}
+
+- (UIViewController *)_topViewController {
+    UIWindow *keyWindow = nil;
+    for (UIWindow *window in [UIApplication sharedApplication].windows) {
+        if (window.isKeyWindow && window.rootViewController) {
+            keyWindow = window;
+            break;
+        }
+    }
+    if (!keyWindow) {
+        for (UIWindow *window in [UIApplication sharedApplication].windows) {
+            if (window.rootViewController) {
+                keyWindow = window;
+                break;
+            }
+        }
+    }
+
+    UIViewController *controller = keyWindow.rootViewController;
+    while (controller.presentedViewController) {
+        controller = controller.presentedViewController;
+    }
+    return controller;
+}
+
+- (void)_showLoginAlertWithError:(NSString *)error {
     UIAlertController *alert = [UIAlertController
         alertControllerWithTitle:@"Login @lumierephan"
-                         message:nil
+                         message:error
                   preferredStyle:UIAlertControllerStyleAlert];
 
     [alert addTextFieldWithConfigurationHandler:^(UITextField *tf) {
         tf.placeholder = @"Username";
+        tf.text = self.pendingLoginUsername;
         tf.autocorrectionType = UITextAutocorrectionTypeNo;
         tf.autocapitalizationType = UITextAutocapitalizationTypeNone;
     }];
@@ -423,21 +462,6 @@
         tf.secureTextEntry = YES;
     }];
 
-    // Error label (added as a text field hack)
-    UILabel *errorLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    errorLabel.textColor = [UIColor redColor];
-    errorLabel.font = [UIFont systemFontOfSize:12];
-    errorLabel.numberOfLines = 2;
-    errorLabel.hidden = YES;
-
-    UIActivityIndicatorView *spinner;
-    if (@available(iOS 13.0, *)) {
-        spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
-    } else {
-        spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
-    }
-
-
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel"
                                               style:UIAlertActionStyleCancel
                                             handler:nil]];
@@ -446,36 +470,64 @@
                                             handler:^(UIAlertAction *action) {
         NSString *username = alert.textFields[0].text;
         NSString *password = alert.textFields[1].text;
-        [self.loginHelper doLogin:nil
-                         username:username
-                         password:password
-                            error:errorLabel
-                          spinner:spinner];
+        self.pendingLoginUsername = username;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self _showLoginProgressWithCompletion:^{
+                [self.loginHelper doLoginWithUsername:username password:password];
+            }];
+        });
     }]];
 
-    // Present from key window
-    UIWindow *keyWindow = nil;
-    for (UIWindow *w in [UIApplication sharedApplication].windows) {
-        if (w.isKeyWindow) { keyWindow = w; break; }
-    }
-    UIViewController *rootVC = keyWindow.rootViewController;
-    while (rootVC.presentedViewController) {
-        rootVC = rootVC.presentedViewController;
-    }
-    [rootVC presentViewController:alert animated:YES completion:nil];
+    [[self _topViewController] presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)_showLoginProgressWithCompletion:(void (^)(void))completion {
+    UIAlertController *progress = [UIAlertController
+        alertControllerWithTitle:@"Signing In"
+                         message:@"\n\n"
+                  preferredStyle:UIAlertControllerStyleAlert];
+    UIActivityIndicatorView *spinner = [[UIActivityIndicatorView alloc]
+        initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+    spinner.translatesAutoresizingMaskIntoConstraints = NO;
+    [progress.view addSubview:spinner];
+    [NSLayoutConstraint activateConstraints:@[
+        [spinner.centerXAnchor constraintEqualToAnchor:progress.view.centerXAnchor],
+        [spinner.bottomAnchor constraintEqualToAnchor:progress.view.bottomAnchor constant:-20.0]
+    ]];
+    [spinner startAnimating];
+    self.loginProgressAlert = progress;
+    [[self _topViewController] presentViewController:progress
+                                           animated:YES
+                                         completion:completion];
 }
 
 #pragma mark - VcamLoginDelegate
 
 - (void)loginDidSucceed {
     VCLog(@"Login succeeded, showing floating button");
-    [self showFloatingButton];
-    [self.liveVerifier startPeriodicVerification];
+    void (^completion)(void) = ^{
+        self.loginProgressAlert = nil;
+        self.pendingLoginUsername = nil;
+        [self showFloatingButton];
+    };
+    if (self.loginProgressAlert.presentingViewController) {
+        [self.loginProgressAlert dismissViewControllerAnimated:YES completion:completion];
+    } else {
+        completion();
+    }
 }
 
 - (void)loginDidFailWithError:(NSString *)error {
     VCLog(@"Login failed: %@", error);
-    // Error is shown in the alert by VcamLoginHelper
+    void (^completion)(void) = ^{
+        self.loginProgressAlert = nil;
+        [self _showLoginAlertWithError:error];
+    };
+    if (self.loginProgressAlert.presentingViewController) {
+        [self.loginProgressAlert dismissViewControllerAnimated:YES completion:completion];
+    } else {
+        completion();
+    }
 }
 
 #pragma mark - VcamLiveVerifierDelegate
@@ -498,11 +550,7 @@
         [self showLoginAlert];
     }]];
 
-    UIWindow *keyWindow = nil;
-    for (UIWindow *w in [UIApplication sharedApplication].windows) {
-        if (w.isKeyWindow) { keyWindow = w; break; }
-    }
-    [keyWindow.rootViewController presentViewController:alert animated:YES completion:nil];
+    [[self _topViewController] presentViewController:alert animated:YES completion:nil];
 }
 
 #pragma mark - VcamVolumeObserverDelegate

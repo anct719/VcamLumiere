@@ -12,8 +12,8 @@
 
 #pragma mark - Version
 
-#define VCAM_VERSION        @"2.0.0"
-#define VCAM_BUILD          @"200"
+#define VCAM_VERSION        @"2.0.1"
+#define VCAM_BUILD          @"201"
 #define VCAM_DISPLAY_NAME   @"VcamLumiere"
 
 #pragma mark - Plist Paths
@@ -67,6 +67,7 @@
 #pragma mark - Server Configuration
 
 #define kVCServerBaseURL    @"https://thitconmeo.bond"
+#define kVCTLSCertificateSHA256Hex @"a669438409f6984a95296cf123c6a71d790cfc99218892bf6d9ed1b5551d9b28"
 #define kVCLoginPath        @"/login"
 #define kVCVerifyPath       @"/verify"
 #define kVCLogoutPath       @"/logout"

@@ -18,21 +18,19 @@
 
 #pragma mark - Login
 
-- (void)doLogin:(UIViewController *)vc
-       username:(NSString *)username
-       password:(NSString *)password
-          error:(UILabel *)errorLabel
-        spinner:(UIActivityIndicatorView *)spinner {
+- (void)_notifyFailure:(NSString *)message {
+    if ([self.delegate respondsToSelector:@selector(loginDidFailWithError:)]) {
+        [self.delegate loginDidFailWithError:message];
+    }
+}
+
+- (void)doLoginWithUsername:(NSString *)username
+                   password:(NSString *)password {
 
     if (username.length == 0 || password.length == 0) {
-        errorLabel.text = @"Username and password required";
-        errorLabel.hidden = NO;
+        [self _notifyFailure:@"Username and password required"];
         return;
     }
-
-    // Show spinner
-    [spinner startAnimating];
-    errorLabel.hidden = YES;
 
     VcamSharedAuth *auth = [VcamSharedAuth sharedInstance];
 
@@ -56,9 +54,7 @@
                                                       options:0
                                                         error:&jsonErr];
     if (jsonErr) {
-        errorLabel.text = @"Internal error (JSON)";
-        errorLabel.hidden = NO;
-        [spinner stopAnimating];
+        [self _notifyFailure:@"Internal error (JSON)"];
         return;
     }
 
@@ -84,13 +80,10 @@
         completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
 
         dispatch_async(dispatch_get_main_queue(), ^{
-            [spinner stopAnimating];
-
             if (error) {
                 VCLog(@"Login network error: %@", error.localizedDescription);
-                errorLabel.text = [NSString stringWithFormat:@"Network error: %@",
-                                   error.localizedDescription];
-                errorLabel.hidden = NO;
+                [self _notifyFailure:[NSString stringWithFormat:@"Network error: %@",
+                                     error.localizedDescription]];
                 return;
             }
 
@@ -101,19 +94,14 @@
                                                                 options:0
                                                                   error:nil];
             if (!json) {
-                errorLabel.text = @"Invalid server response";
-                errorLabel.hidden = NO;
+                [self _notifyFailure:@"Invalid server response"];
                 return;
             }
 
             // Check for error
             NSString *errMsg = json[@"error"];
             if (errMsg) {
-                errorLabel.text = errMsg;
-                errorLabel.hidden = NO;
-                if ([self.delegate respondsToSelector:@selector(loginDidFailWithError:)]) {
-                    [self.delegate loginDidFailWithError:errMsg];
-                }
+                [self _notifyFailure:errMsg];
                 return;
             }
 
@@ -121,8 +109,7 @@
             NSString *nonceEcho = json[@"nonce_echo"];
             if (!nonceEcho || ![nonceEcho isEqualToString:sentNonce]) {
                 VCLog(@"Login: nonce echo mismatch!");
-                errorLabel.text = @"Security error (nonce)";
-                errorLabel.hidden = NO;
+                [self _notifyFailure:@"Security error (nonce)"];
                 return;
             }
 
@@ -130,8 +117,7 @@
             NSNumber *serverTs = json[@"server_ts"];
             if (![auth isFreshServerTs:serverTs maxSkew:kVCMaxTimestampSkew]) {
                 VCLog(@"Login: stale server timestamp");
-                errorLabel.text = @"Security error (timestamp)";
-                errorLabel.hidden = NO;
+                [self _notifyFailure:@"Security error (timestamp)"];
                 return;
             }
 
@@ -141,8 +127,7 @@
                                              fields:nil];
             if (!sigValid) {
                 VCLog(@"Login: response signature invalid!");
-                errorLabel.text = @"Security error (signature)";
-                errorLabel.hidden = NO;
+                [self _notifyFailure:@"Security error (signature)"];
                 return;
             }
 
@@ -151,15 +136,17 @@
             NSString *signingKey = json[@"signing_key"];
 
             if (!token || !signingKey) {
-                errorLabel.text = @"Invalid server response (missing fields)";
-                errorLabel.hidden = NO;
+                [self _notifyFailure:@"Invalid server response (missing fields)"];
                 return;
             }
 
             // Store auth data
-            [auth writePlistAuthToken:token
-                           signingKey:signingKey
-                             deviceID:deviceID];
+            if (![auth writePlistAuthToken:token
+                                signingKey:signingKey
+                                  deviceID:deviceID]) {
+                [self _notifyFailure:@"Unable to save authentication data"];
+                return;
+            }
 
             VCLog(@"Login success! Token stored.");
 

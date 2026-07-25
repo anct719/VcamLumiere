@@ -17,6 +17,7 @@
 #import <VideoToolbox/VideoToolbox.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
+#include <stdlib.h>
 
 #import "VCamManager.h"
 #import "../Shared/VcamConstants.h"
@@ -40,10 +41,38 @@ static origAppendPixel_t orig_appendPixelBuffer;
 
 // captureOutput:didOutputSampleBuffer:fromConnection:
 typedef void (*origCaptureOutput_t)(id, SEL, id, CMSampleBufferRef, id);
-static origCaptureOutput_t orig_captureOutput;
 
 // Track which delegate classes we've already hooked
 static NSMutableSet *hookedDelegateClasses = nil;
+static NSMutableDictionary<NSString *, NSValue *> *originalCaptureIMPs = nil;
+
+static origCaptureOutput_t originalCaptureOutputForClassUnlocked(Class cls) {
+    for (; cls; cls = class_getSuperclass(cls)) {
+        NSValue *value = originalCaptureIMPs[NSStringFromClass(cls)];
+        if (value) return (origCaptureOutput_t)value.pointerValue;
+    }
+    return NULL;
+}
+
+static origCaptureOutput_t originalCaptureOutputForObject(id object) {
+    @synchronized (hookedDelegateClasses) {
+        return originalCaptureOutputForClassUnlocked(object_getClass(object));
+    }
+}
+
+static BOOL classDirectlyImplementsSelector(Class cls, SEL selector) {
+    unsigned int count = 0;
+    Method *methods = class_copyMethodList(cls, &count);
+    BOOL found = NO;
+    for (unsigned int index = 0; index < count; index++) {
+        if (method_getName(methods[index]) == selector) {
+            found = YES;
+            break;
+        }
+    }
+    free(methods);
+    return found;
+}
 
 #pragma mark - Pixel Buffer Replacement
 
@@ -154,44 +183,40 @@ static void hooked_captureOutput(id self, SEL _cmd,
                                   CMSampleBufferRef sampleBuffer,
                                   id connection) {
     VCamManager *mgr = [VCamManager sharedInstance];
-
-    if (!mgr.isLive || !mgr.currentPixelBuffer) {
-        orig_captureOutput(self, _cmd, output, sampleBuffer, connection);
+    origCaptureOutput_t original = originalCaptureOutputForObject(self);
+    if (!original) {
+        VCLog(@"captureOutput hook: missing original IMP for %@", NSStringFromClass([self class]));
         return;
     }
 
+    CVPixelBufferRef vcamBuf = [mgr copyCurrentPixelBuffer];
+    if (!vcamBuf) {
+        if (vcamBuf) CVPixelBufferRelease(vcamBuf);
+        original(self, _cmd, output, sampleBuffer, connection);
+        return;
+    }
+
+    CMSampleBufferRef replacementSample = NULL;
     @try {
         CVPixelBufferRef origBuf = CMSampleBufferGetImageBuffer(sampleBuffer);
-        CVPixelBufferRef vcamBuf = mgr.currentPixelBuffer;
-
-        if (!origBuf || !vcamBuf) {
-            orig_captureOutput(self, _cmd, output, sampleBuffer, connection);
-            return;
+        if (origBuf) {
+            CVPixelBufferRef replacement = createReplacementBuffer(origBuf, vcamBuf);
+            if (replacement) {
+                replacementSample = createReplacementSampleBuffer(sampleBuffer, replacement);
+                CVPixelBufferRelease(replacement);
+            }
         }
-
-        // Create replacement pixel buffer (scaled/converted to match original)
-        CVPixelBufferRef replacement = createReplacementBuffer(origBuf, vcamBuf);
-        if (!replacement) {
-            orig_captureOutput(self, _cmd, output, sampleBuffer, connection);
-            return;
-        }
-
-        // Create replacement sample buffer
-        CMSampleBufferRef newSampleBuf = createReplacementSampleBuffer(sampleBuffer, replacement);
-        CVPixelBufferRelease(replacement);
-
-        if (!newSampleBuf) {
-            orig_captureOutput(self, _cmd, output, sampleBuffer, connection);
-            return;
-        }
-
-        // Call original with our replaced buffer
-        orig_captureOutput(self, _cmd, output, newSampleBuf, connection);
-        CFRelease(newSampleBuf);
-
     } @catch (NSException *e) {
         VCLog(@"captureOutput hook exception: %@", e);
-        orig_captureOutput(self, _cmd, output, sampleBuffer, connection);
+    }
+
+    @try {
+        original(self, _cmd, output,
+                 replacementSample ?: sampleBuffer,
+                 connection);
+    } @finally {
+        if (replacementSample) CFRelease(replacementSample);
+        CVPixelBufferRelease(vcamBuf);
     }
 }
 
@@ -211,11 +236,24 @@ static void hooked_setSampleBufferDelegate(id self, SEL _cmd,
                 SEL captureSel = @selector(captureOutput:didOutputSampleBuffer:fromConnection:);
 
                 if ([delegateClass instancesRespondToSelector:captureSel]) {
-                    MSHookMessageEx(delegateClass, captureSel,
-                                    (IMP)hooked_captureOutput,
-                                    (IMP *)&orig_captureOutput);
-                    [hookedDelegateClasses addObject:className];
-                    VCLog(@"hooked captureOutput on %@", className);
+                    BOOL inheritsHook = !classDirectlyImplementsSelector(delegateClass, captureSel) &&
+                        originalCaptureOutputForClassUnlocked(class_getSuperclass(delegateClass));
+                    if (inheritsHook) {
+                        [hookedDelegateClasses addObject:className];
+                        VCLog(@"captureOutput inherited from hooked superclass on %@", className);
+                    } else {
+                        IMP originalIMP = NULL;
+                        MSHookMessageEx(delegateClass, captureSel,
+                                        (IMP)hooked_captureOutput,
+                                        &originalIMP);
+                        if (originalIMP) {
+                            originalCaptureIMPs[className] = [NSValue valueWithPointer:originalIMP];
+                            [hookedDelegateClasses addObject:className];
+                            VCLog(@"hooked captureOutput on %@", className);
+                        } else {
+                            VCLog(@"failed to capture original IMP for %@", className);
+                        }
+                    }
                 }
             }
         }
@@ -230,14 +268,16 @@ static BOOL hooked_appendSampleBuffer(id self, SEL _cmd,
                                        CMSampleBufferRef sampleBuffer) {
     VCamManager *mgr = [VCamManager sharedInstance];
 
-    if (mgr.isLive && mgr.currentPixelBuffer) {
+    CVPixelBufferRef vcamBuf = [mgr copyCurrentPixelBuffer];
+    if (vcamBuf) {
         CVPixelBufferRef origBuf = CMSampleBufferGetImageBuffer(sampleBuffer);
         if (origBuf) {
-            CVPixelBufferRef replacement = createReplacementBuffer(origBuf, mgr.currentPixelBuffer);
+            CVPixelBufferRef replacement = createReplacementBuffer(origBuf, vcamBuf);
             if (replacement) {
                 CMSampleBufferRef newBuf = createReplacementSampleBuffer(sampleBuffer, replacement);
                 CVPixelBufferRelease(replacement);
                 if (newBuf) {
+                    CVPixelBufferRelease(vcamBuf);
                     BOOL result = orig_appendSampleBuffer(self, _cmd, newBuf);
                     CFRelease(newBuf);
                     return result;
@@ -245,6 +285,7 @@ static BOOL hooked_appendSampleBuffer(id self, SEL _cmd,
             }
         }
     }
+    if (vcamBuf) CVPixelBufferRelease(vcamBuf);
 
     return orig_appendSampleBuffer(self, _cmd, sampleBuffer);
 }
@@ -256,14 +297,17 @@ static BOOL hooked_appendPixelBuffer(id self, SEL _cmd,
                                       CMTime presentationTime) {
     VCamManager *mgr = [VCamManager sharedInstance];
 
-    if (mgr.isLive && mgr.currentPixelBuffer) {
-        CVPixelBufferRef replacement = createReplacementBuffer(pixelBuffer, mgr.currentPixelBuffer);
+    CVPixelBufferRef vcamBuf = [mgr copyCurrentPixelBuffer];
+    if (vcamBuf) {
+        CVPixelBufferRef replacement = createReplacementBuffer(pixelBuffer, vcamBuf);
         if (replacement) {
+            CVPixelBufferRelease(vcamBuf);
             BOOL result = orig_appendPixelBuffer(self, _cmd, replacement, presentationTime);
             CVPixelBufferRelease(replacement);
             return result;
         }
     }
+    if (vcamBuf) CVPixelBufferRelease(vcamBuf);
 
     return orig_appendPixelBuffer(self, _cmd, pixelBuffer, presentationTime);
 }
@@ -277,6 +321,7 @@ static void vcam_daemon_init(void) {
         VCLog(@"inject into %@", process);
 
         hookedDelegateClasses = [NSMutableSet set];
+        originalCaptureIMPs = [NSMutableDictionary dictionary];
 
         // Hook 1: AVCaptureVideoDataOutput -setSampleBufferDelegate:queue:
         Class cls1 = objc_getClass("AVCaptureVideoDataOutput");

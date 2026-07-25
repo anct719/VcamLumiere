@@ -9,10 +9,15 @@ on:
         description: 'Auth server URL (e.g. https://vcam.example.com)'
         required: false
         default: 'https://your-server.com'
+      certificate_sha256:
+        description: 'Leaf certificate SHA-256 (64 hex characters)'
+        required: false
+        default: ''
 
 env:
   PACKAGE_NAME: com.lumiere.vcamlumiere
-  PACKAGE_VERSION: "2.0.0"
+  PACKAGE_VERSION: "2.0.1"
+  MONOCYPHER_COMMIT: ab2b16dd619ad5f6979a4fbe69cfa324a6fcc35f
 
 jobs:
   build:
@@ -28,6 +33,7 @@ jobs:
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-path
           uname -m
+          bash -n build.sh
 
       - name: Install ldid
         run: brew install ldid
@@ -60,6 +66,33 @@ jobs:
           done
           echo "[OK] librtmp compiled ($(ls build/obj/*.o | wc -l) objects)"
 
+      - name: Fetch, test and compile Monocypher
+        run: |
+          mkdir -p deps/monocypher
+          git -C deps/monocypher init
+          git -C deps/monocypher remote add origin https://github.com/LoupVaillant/Monocypher.git
+          git -C deps/monocypher fetch --depth 1 origin "$MONOCYPHER_COMMIT"
+          git -C deps/monocypher checkout --detach FETCH_HEAD
+          test "$(git -C deps/monocypher rev-parse HEAD)" = "$MONOCYPHER_COMMIT"
+
+          clang -std=c99 -O2 -Wall -Wextra \
+                -Ideps/monocypher/src -Ideps/monocypher/src/optional \
+                Tests/Ed25519VerifierTests.c \
+                deps/monocypher/src/monocypher.c \
+                deps/monocypher/src/optional/monocypher-ed25519.c \
+                -o build/ed25519-tests
+          ./build/ed25519-tests
+
+          SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
+          clang -std=c99 -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=15.0 \
+                -O2 -Wall -Wextra -Ideps/monocypher/src \
+                -c deps/monocypher/src/monocypher.c -o build/obj/monocypher.o
+          clang -std=c99 -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=15.0 \
+                -O2 -Wall -Wextra -Ideps/monocypher/src -Ideps/monocypher/src/optional \
+                -c deps/monocypher/src/optional/monocypher-ed25519.c \
+                -o build/obj/monocypher-ed25519.o
+          echo "[OK] Monocypher verified and compiled"
+
       - name: Update server URL
         if: github.event.inputs.server_url != '' && github.event.inputs.server_url != 'https://your-server.com'
         run: |
@@ -68,13 +101,26 @@ jobs:
           sed -i '' "s|https://thitconmeo.bond|${SERVER_URL}|g" Shared/VcamConstants.h
           sed -i '' "s|https://your-server.com|${SERVER_URL}|g" Shared/VcamConstants.h
 
+      - name: Update certificate pin
+        if: github.event.inputs.certificate_sha256 != ''
+        env:
+          CERTIFICATE_SHA256: ${{ github.event.inputs.certificate_sha256 }}
+        run: |
+          if ! [[ "$CERTIFICATE_SHA256" =~ ^[0-9A-Fa-f]{64}$ ]]; then
+            echo "[ERR] certificate_sha256 must contain exactly 64 hex characters"
+            exit 1
+          fi
+          sed -E -i '' \
+            "s|(kVCTLSCertificateSHA256Hex @\")[0-9A-Fa-f]{64}(\")|\1${CERTIFICATE_SHA256}\2|" \
+            Shared/VcamConstants.h
+
       - name: Build VcamLumiereDaemon.dylib
         run: |
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           SUBSTRATE_DIR="$(pwd)/deps/substrate"
           mkdir -p build
-          RTMP_OBJS=$(find build/obj -name "*.o" 2>/dev/null | tr '\n' ' ')
-          echo "Linking with librtmp objects: $RTMP_OBJS"
+          LINK_OBJS=$(find build/obj -name "*.o" 2>/dev/null | tr '\n' ' ')
+          echo "Linking objects: $LINK_OBJS"
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=15.0 \
                 -fobjc-arc -fmodules -O2 -w \
                 -dynamiclib \
@@ -82,10 +128,11 @@ jobs:
                 -Wl,-rpath,/var/jb/usr/lib \
                 -Wl,-rpath,/var/jb/Library/Frameworks \
                 -I"$SUBSTRATE_DIR" -I"$(pwd)" \
+                -Ideps/monocypher/src -Ideps/monocypher/src/optional \
                 -L"$SUBSTRATE_DIR" -lsubstrate \
                 Daemon/Tweak.m Daemon/VCamManager.m Daemon/RTMPClient.m Daemon/H264Decoder.m \
                 Shared/VcamSharedAuth.m Shared/VcamAntiHook.m \
-                $RTMP_OBJS \
+                $LINK_OBJS \
                 -framework Foundation -framework CoreMedia -framework CoreVideo \
                 -framework VideoToolbox -framework Accelerate -framework CoreImage \
                 -framework Security -framework CFNetwork -framework ImageIO \
@@ -101,6 +148,7 @@ jobs:
         run: |
           SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           SUBSTRATE_DIR="$(pwd)/deps/substrate"
+          CRYPTO_OBJS="build/obj/monocypher.o build/obj/monocypher-ed25519.o"
           clang -arch arm64 -isysroot "$SDKROOT" -miphoneos-version-min=15.0 \
                 -fobjc-arc -fmodules -O2 -w \
                 -dynamiclib \
@@ -108,11 +156,13 @@ jobs:
                 -Wl,-rpath,/var/jb/usr/lib \
                 -Wl,-rpath,/var/jb/Library/Frameworks \
                 -I"$SUBSTRATE_DIR" -I"$(pwd)" \
+                -Ideps/monocypher/src -Ideps/monocypher/src/optional \
                 -L"$SUBSTRATE_DIR" -lsubstrate \
                 UI/Tweak.m UI/VcamHelper.m UI/VcamLoginHelper.m \
                 UI/VcamLiveVerifier.m UI/VcamPinnedSession.m \
                 UI/VcamPassthroughWindow.m UI/VcamVolumeObserver.m \
                 Shared/VcamSharedAuth.m Shared/VcamAntiHook.m \
+                $CRYPTO_OBJS \
                 -framework Foundation -framework UIKit -framework AudioToolbox \
                 -framework Security -framework AVFoundation \
                 -framework CoreGraphics -framework QuartzCore \

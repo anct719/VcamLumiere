@@ -18,9 +18,15 @@
 #import <UIKit/UIKit.h>
 #import <sys/utsname.h>
 #import <dlfcn.h>
+#include "monocypher-ed25519.h"
 
 // libMobileGestalt — loaded dynamically to avoid linker error on macOS
 typedef CFStringRef (*MGCopyAnswer_t)(CFStringRef property);
+
+@interface VcamSharedAuth ()
+- (NSData *)_deriveKeyForPurpose:(NSString *)purpose deviceID:(NSString *)deviceID;
+- (NSString *)_encryptString:(NSString *)plaintext deviceID:(NSString *)deviceID;
+@end
 
 @implementation VcamSharedAuth
 
@@ -47,13 +53,19 @@ typedef CFStringRef (*MGCopyAnswer_t)(CFStringRef property);
 
 #pragma mark - Plist Auth CRUD
 
-- (void)writePlistAuthToken:(NSString *)token
+- (BOOL)writePlistAuthToken:(NSString *)token
                  signingKey:(NSString *)signingKey
                    deviceID:(NSString *)deviceID {
+    if (token.length == 0 || signingKey.length == 0 || deviceID.length == 0) {
+        VCLog(@"Refusing to write incomplete auth data");
+        return NO;
+    }
+
     NSMutableDictionary *plist = [self _readPlist];
 
-    // Encrypt the signing key before storing
-    NSString *encKey = [self encryptString:signingKey];
+    // Bind the encrypted signing key to the device ID from this login response.
+    NSString *encKey = [self _encryptString:signingKey deviceID:deviceID];
+    if (!encKey) return NO;
 
     plist[kVCKeyAuthToken]    = token;
     plist[kVCKeyAuthSignEnc]  = encKey;
@@ -65,8 +77,9 @@ typedef CFStringRef (*MGCopyAnswer_t)(CFStringRef property);
                                             deviceID:deviceID];
     plist[kVCKeyAuthIntegrity] = integrity;
 
-    [self _writePlist:plist];
-    VCLog(@"Auth data written to plist");
+    BOOL written = [self _writePlist:plist];
+    VCLog(@"Auth data %@ plist", written ? @"written to" : @"failed to write to");
+    return written;
 }
 
 - (NSString *)readPlistToken {
@@ -164,6 +177,10 @@ typedef CFStringRef (*MGCopyAnswer_t)(CFStringRef property);
         deviceID = [self deviceFingerprint];
     }
 
+    return [self _deriveKeyForPurpose:purpose deviceID:deviceID];
+}
+
+- (NSData *)_deriveKeyForPurpose:(NSString *)purpose deviceID:(NSString *)deviceID {
     NSString *input = [NSString stringWithFormat:@"%@:%@:%@",
                        kVCAESMasterKeyHex, purpose, deviceID];
 
@@ -177,14 +194,22 @@ typedef CFStringRef (*MGCopyAnswer_t)(CFStringRef property);
 #pragma mark - AES Encrypt / Decrypt
 
 - (NSString *)encryptString:(NSString *)plaintext {
+    NSString *deviceID = [self readPlistDeviceID] ?: [self deviceFingerprint];
+    return [self _encryptString:plaintext deviceID:deviceID];
+}
+
+- (NSString *)_encryptString:(NSString *)plaintext deviceID:(NSString *)deviceID {
     if (!plaintext) return nil;
 
-    NSData *key = [self deriveKeyForPurpose:kVCPurposeEnc];
+    NSData *key = [self _deriveKeyForPurpose:kVCPurposeEnc deviceID:deviceID];
     NSData *data = [plaintext dataUsingEncoding:NSUTF8StringEncoding];
 
     // Generate random 16-byte IV
     uint8_t iv[kCCBlockSizeAES128];
-    SecRandomCopyBytes(kSecRandomDefault, kCCBlockSizeAES128, iv);
+    if (SecRandomCopyBytes(kSecRandomDefault, kCCBlockSizeAES128, iv) != errSecSuccess) {
+        VCLog(@"AES encrypt: unable to generate IV");
+        return nil;
+    }
 
     size_t outLen = data.length + kCCBlockSizeAES128;
     NSMutableData *outData = [NSMutableData dataWithLength:outLen];
@@ -308,7 +333,7 @@ typedef CFStringRef (*MGCopyAnswer_t)(CFStringRef property);
 - (BOOL)verifyEd25519Sig:(NSString *)sigBase64
                  payload:(NSString *)payload
                   pubKey:(NSData *)pubKey {
-    if (!sigBase64 || !payload || !pubKey) return NO;
+    if (!sigBase64 || !payload || pubKey.length != 32) return NO;
 
     NSData *sigData = [[NSData alloc] initWithBase64EncodedString:sigBase64 options:0];
     NSData *msgData = [payload dataUsingEncoding:NSUTF8StringEncoding];
@@ -318,54 +343,12 @@ typedef CFStringRef (*MGCopyAnswer_t)(CFStringRef property);
         return NO;
     }
 
-    // Ed25519 constants — define manually as they may not be public in all SDK versions
-    // These are the actual CFString values used internally by Security.framework
-    CFStringRef kKeyTypeEd25519 = CFSTR("73");  // kSecAttrKeyTypeEd25519 internal value
-    CFStringRef kAlgoEdDSA = NULL;
-
-    // Try to load the algorithm symbol dynamically
-    // kSecKeyAlgorithmEdDSASignatureMessageX963SHA256 is available iOS 16.4+
-    // For raw Ed25519, we use the string identifier
-    kAlgoEdDSA = CFSTR("algid:sign:EdDSA:msg-raw");
-
-    // Create Ed25519 public key from raw bytes using Security.framework
-    NSDictionary *attrs = @{
-        (id)kSecAttrKeyType:  (__bridge id)kKeyTypeEd25519,
-        (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPublic,
-    };
-
-    CFErrorRef error = NULL;
-    SecKeyRef key = SecKeyCreateWithData(
-        (__bridge CFDataRef)pubKey,
-        (__bridge CFDictionaryRef)attrs,
-        &error
-    );
-
-    if (!key) {
-        if (error) {
-            VCLog(@"Ed25519: failed to create key: %@", (__bridge NSError *)error);
-            CFRelease(error);
-        }
-        return NO;
-    }
-
-    // Verify signature using the EdDSA raw algorithm
-    BOOL valid = SecKeyVerifySignature(
-        key,
-        (SecKeyAlgorithm)kAlgoEdDSA,
-        (__bridge CFDataRef)msgData,
-        (__bridge CFDataRef)sigData,
-        &error
-    );
-
-    CFRelease(key);
-
-    if (!valid && error) {
-        VCLog(@"Ed25519: verification failed: %@", (__bridge NSError *)error);
-        CFRelease(error);
-    }
-
-    return valid;
+    int result = crypto_ed25519_check(sigData.bytes,
+                                      pubKey.bytes,
+                                      msgData.bytes,
+                                      msgData.length);
+    if (result != 0) VCLog(@"Ed25519: verification failed");
+    return result == 0;
 }
 
 #pragma mark - Response Verification
