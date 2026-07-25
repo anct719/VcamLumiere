@@ -85,7 +85,21 @@
     }
 
     CGRect screenBounds = [UIScreen mainScreen].bounds;
-    self.window = [[VcamPassthroughWindow alloc] initWithFrame:screenBounds];
+    UIWindowScene *activeScene = nil;
+    for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if ([scene isKindOfClass:[UIWindowScene class]] &&
+            scene.activationState == UISceneActivationStateForegroundActive) {
+            activeScene = (UIWindowScene *)scene;
+            break;
+        }
+    }
+    if (activeScene) {
+        self.window = [[VcamPassthroughWindow alloc] initWithWindowScene:activeScene];
+        self.window.frame = activeScene.coordinateSpace.bounds;
+        screenBounds = self.window.bounds;
+    } else {
+        self.window = [[VcamPassthroughWindow alloc] initWithFrame:screenBounds];
+    }
 
     // Create floating button
     CGFloat btnSize = 50;
@@ -414,6 +428,14 @@
     if (auth) {
         VCLog(@"Already authenticated, showing UI");
         [self showFloatingButton];
+        return;
+    }
+
+    if (![self _topViewController]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [self showLoginAlert];
+        });
         return;
     }
 

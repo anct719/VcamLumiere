@@ -22,35 +22,38 @@ extern void MSHookMessageEx(Class _class, SEL message, IMP hook, IMP *old);
 
 typedef void (*origDidFinishLaunching_t)(id, SEL, UIApplication *);
 static origDidFinishLaunching_t orig_didFinishLaunching;
+static dispatch_once_t uiInitializationOnce;
+
+static void scheduleVcamUIInitialization(void) {
+    dispatch_once(&uiInitializationOnce, ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            VCLog(@"Initializing VcamLumiere UI...");
+
+            if ([[VcamAntiHook sharedInstance] isCompromised]) {
+                VCLog(@"[vc-antihook] compromised -> refusing to show UI");
+                return;
+            }
+
+            NSDictionary *auth = [[VcamSharedAuth sharedInstance] readVerifiedAuth];
+            if (auth) {
+                [[VcamHelper sharedInstance] showFloatingButton];
+            } else {
+                [[VcamHelper sharedInstance] showLoginAlert];
+            }
+        });
+    });
+}
 
 static void hooked_didFinishLaunching(id self, SEL _cmd, UIApplication *application) {
     // Call original first
-    orig_didFinishLaunching(self, _cmd, application);
+    if (orig_didFinishLaunching) {
+        orig_didFinishLaunching(self, _cmd, application);
+    }
 
     VCLog(@"SpringBoard did finish launching");
 
-    // Anti-hook check
-    if ([[VcamAntiHook sharedInstance] isCompromised]) {
-        VCLog(@"[vc-antihook] compromised -> refusing to show UI");
-        return;
-    }
-
-    // Delay init slightly to ensure SpringBoard is fully ready
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-
-        VCLog(@"Initializing VcamLumiere UI...");
-
-        // Check if user is already authenticated
-        NSDictionary *auth = [[VcamSharedAuth sharedInstance] readVerifiedAuth];
-        if (auth) {
-            // Already logged in — show floating button
-            [[VcamHelper sharedInstance] showFloatingButton];
-        } else {
-            // Not logged in — show login prompt
-            [[VcamHelper sharedInstance] showLoginAlert];
-        }
-    });
+    scheduleVcamUIInitialization();
 }
 
 #pragma mark - Constructor
@@ -74,6 +77,9 @@ static void vcam_ui_init(void) {
         } else {
             VCLog(@"WARNING: SpringBoard class not found!");
         }
+
+        // Fallback for injection after applicationDidFinishLaunching: already ran.
+        scheduleVcamUIInitialization();
 
         VCLog(@"VcamLumiereUI %@ loaded", VCAM_VERSION);
     }

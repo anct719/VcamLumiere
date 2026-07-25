@@ -1,6 +1,6 @@
 Package: com.lumiere.vcamlumiere
 Name: VcamLumiere
-Version: 2.0.2
+Version: 2.0.3
 Architecture: iphoneos-arm64
 Description: Virtual camera tweak - inject RTMP stream into camera feed.
 Maintainer: LumierePhan

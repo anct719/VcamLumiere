@@ -16,7 +16,7 @@ on:
 
 env:
   PACKAGE_NAME: com.lumiere.vcamlumiere
-  PACKAGE_VERSION: "2.0.2"
+  PACKAGE_VERSION: "2.0.3"
   MONOCYPHER_COMMIT: ab2b16dd619ad5f6979a4fbe69cfa324a6fcc35f
 
 jobs:
@@ -191,16 +191,14 @@ jobs:
           STAGE="package/stage"
           mkdir -p "$STAGE/DEBIAN"
           mkdir -p "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries"
-          cp Layout/DEBIAN/control "$STAGE/DEBIAN/"
+          cp Layout/DEBIAN/* "$STAGE/DEBIAN/"
           cp build/VcamLumiereDaemon.dylib "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
           cp build/VcamLumiereUI.dylib     "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
           cp Layout/var/jb/Library/MobileSubstrate/DynamicLibraries/*.plist \
              "$STAGE/var/jb/Library/MobileSubstrate/DynamicLibraries/"
-          echo '#!/bin/sh' > "$STAGE/DEBIAN/postinst"
-          echo 'echo "VcamLumiere installed. Please respring to activate."' >> "$STAGE/DEBIAN/postinst"
-          chmod 755 "$STAGE/DEBIAN/postinst"
+          chmod 755 "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/extrainst_"
           sh -n "$STAGE/DEBIAN/postinst"
-          test ! -e "$STAGE/DEBIAN/extrainst_"
+          sh -n "$STAGE/DEBIAN/extrainst_"
           DEB_NAME="${PACKAGE_NAME}_${PACKAGE_VERSION}_iphoneos-arm64.deb"
           dpkg-deb -Zxz --root-owner-group --build "$STAGE" "build/$DEB_NAME"
           test "$(dpkg-deb -f "build/$DEB_NAME" Architecture)" = "iphoneos-arm64"
