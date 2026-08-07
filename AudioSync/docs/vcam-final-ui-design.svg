@@ -1,0 +1,116 @@
+<svg width="960" height="840" xmlns="http://www.w3.org/2000/svg">
+  <rect width="960" height="840" fill="#14141f"/>
+  <text x="24" y="30" fill="#888" font-size="13" font-family="monospace">VCamPlus 最终版 UI 图纸 v3.0 (AudioSync 补丁 · 纯 UI 注入, 主源码零改动)</text>
+
+  <!-- ================= 左: 主菜单 ================= -->
+  <rect x="20" y="50" width="430" height="470" rx="12" fill="#16213e" stroke="#3a5a8c" stroke-width="1.5"/>
+  <text x="40" y="80" fill="#fff" font-size="16" font-family="monospace" font-weight="bold">主菜单 (vcam-iOS-V2)</text>
+  <text x="40" y="102" fill="#7d8ba1" font-size="12" font-family="monospace">入口: 快速按 音量+ 再按 音量-</text>
+  <text x="40" y="120" fill="#7d8ba1" font-size="12" font-family="monospace">标题由补丁运行时重命名 (原 Virtual Camera v7.0)</text>
+
+  <text x="40" y="146" fill="#9fb3c8" font-size="13" font-family="monospace">菜单 6 项 (最终批准形态):</text>
+
+  <rect x="40" y="154" width="390" height="34" rx="6" fill="#1d2c4d" stroke="#2c4a7a"/>
+  <text x="56" y="176" fill="#cfd8e3" font-size="14" font-family="monospace">选择视频</text>
+  <text x="330" y="176" fill="#7d8ba1" font-size="12" font-family="monospace">本地视频文件</text>
+
+  <rect x="40" y="194" width="390" height="34" rx="6" fill="#1d2c4d" stroke="#2c4a7a"/>
+  <text x="56" y="216" fill="#cfd8e3" font-size="14" font-family="monospace">直播拉流</text>
+  <text x="330" y="216" fill="#7d8ba1" font-size="12" font-family="monospace">MJPEG over HTTP</text>
+
+  <rect x="40" y="234" width="390" height="34" rx="6" fill="#1d2c4d" stroke="#2c4a7a"/>
+  <text x="56" y="256" fill="#cfd8e3" font-size="14" font-family="monospace">关闭虚拟相机</text>
+  <text x="330" y="256" fill="#7d8ba1" font-size="12" font-family="monospace">恢复真实摄像头</text>
+
+  <rect x="40" y="274" width="390" height="34" rx="6" fill="#1d2c4d" stroke="#2c4a7a"/>
+  <text x="56" y="296" fill="#cfd8e3" font-size="14" font-family="monospace">旋转</text>
+  <text x="330" y="296" fill="#7d8ba1" font-size="12" font-family="monospace">画面 +90°</text>
+
+  <rect x="40" y="314" width="390" height="40" rx="6" fill="#14532d" stroke="#22c55e" stroke-width="2"/>
+  <text x="56" y="339" fill="#4ade80" font-size="15" font-family="monospace" font-weight="bold">声音设置 ★ 新增</text>
+  <text x="330" y="339" fill="#4ade80" font-size="12" font-family="monospace">补丁注入</text>
+
+  <rect x="40" y="360" width="390" height="34" rx="6" fill="#1d2c4d" stroke="#2c4a7a"/>
+  <text x="56" y="382" fill="#cfd8e3" font-size="14" font-family="monospace">取消</text>
+  <text x="330" y="382" fill="#7d8ba1" font-size="12" font-family="monospace">关闭菜单</text>
+
+  <text x="40" y="420" fill="#e8a020" font-size="12" font-family="monospace">已移除 (补丁剔除):</text>
+  <text x="40" y="440" fill="#e8a020" font-size="12" font-family="monospace">✕ 选择图片</text>
+  <text x="40" y="458" fill="#e8a020" font-size="12" font-family="monospace">✕ 悬浮控制</text>
+  <text x="40" y="476" fill="#e8a020" font-size="12" font-family="monospace">✕ 悬浮球 (不重建, 面板按钮不注入)</text>
+  <text x="40" y="502" fill="#7d8ba1" font-size="12" font-family="monospace">★ = AudioSync 补丁运行时注入, 核心源码零改动</text>
+
+  <!-- ================= 右: 声音同步面板 ================= -->
+  <rect x="470" y="50" width="470" height="470" rx="12" fill="#16213e" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="490" y="80" fill="#4ade80" font-size="16" font-family="monospace" font-weight="bold">声音同步设置 (补丁面板)</text>
+  <text x="490" y="102" fill="#7d8ba1" font-size="12" font-family="monospace">点击主菜单 [声音设置] 打开</text>
+
+  <text x="490" y="142" fill="#cfd8e3" font-size="14" font-family="monospace">声音开关</text>
+  <rect x="650" y="126" width="110" height="28" rx="6" fill="#0f3460" stroke="#3a5a8c"/>
+  <rect x="652" y="128" width="52" height="24" rx="4" fill="#22c55e"/>
+  <text x="660" y="144" fill="#062c14" font-size="13" font-family="monospace">开</text>
+  <text x="715" y="144" fill="#667" font-size="13" font-family="monospace">关</text>
+
+  <text x="490" y="187" fill="#cfd8e3" font-size="14" font-family="monospace">音频源类型</text>
+  <rect x="650" y="170" width="260" height="28" rx="6" fill="#0f3460" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="662" y="189" fill="#4ade80" font-size="12" font-family="monospace">自动(同源) | HLS/MP3 | 本地</text>
+
+  <text x="490" y="232" fill="#cfd8e3" font-size="14" font-family="monospace">音频地址 (OBS)</text>
+  <rect x="650" y="215" width="270" height="28" rx="6" fill="#0f3460" stroke="#3a5a8c"/>
+  <text x="660" y="234" fill="#555a66" font-size="12" font-family="monospace">http://ip:8080/live/stream.m3u8</text>
+  <text x="830" y="234" fill="#7d8ba1" font-size="11" font-family="monospace">(禁用)</text>
+
+  <rect x="490" y="252" width="100" height="26" rx="6" fill="#2563eb"/>
+  <text x="504" y="270" fill="#fff" font-size="13" font-family="monospace">测试连接</text>
+  <text x="600" y="270" fill="#4ade80" font-size="12" font-family="monospace">自动模式无需</text>
+
+  <text x="490" y="317" fill="#cfd8e3" font-size="14" font-family="monospace">音量</text>
+  <rect x="650" y="307" width="180" height="6" rx="3" fill="#0f3460"/>
+  <rect x="650" y="307" width="140" height="6" rx="3" fill="#22c55e"/>
+  <circle cx="790" cy="310" r="8" fill="#22c55e"/>
+  <text x="840" y="316" fill="#fff" font-size="13" font-family="monospace">80%</text>
+
+  <text x="490" y="362" fill="#cfd8e3" font-size="14" font-family="monospace">同步方式</text>
+  <rect x="650" y="347" width="180" height="28" rx="6" fill="#0f3460" stroke="#3a5a8c"/>
+  <text x="665" y="366" fill="#fff" font-size="13" font-family="monospace">实时 | 对齐(默认)</text>
+
+  <rect x="490" y="397" width="430" height="46" rx="8" fill="#0f3460"/>
+  <circle cx="510" cy="420" r="6" fill="#22c55e"/>
+  <text x="528" y="424" fill="#cfd8e3" font-size="13" font-family="monospace">状态: 已连接  音画同步对齐 (自动同源)</text>
+
+  <rect x="490" y="452" width="205" height="36" rx="8" fill="#22c55e"/>
+  <text x="555" y="475" fill="#062c14" font-size="14" font-family="monospace" font-weight="bold">保存</text>
+  <rect x="710" y="452" width="210" height="36" rx="8" fill="#334155"/>
+  <text x="790" y="475" fill="#cfd8e3" font-size="14" font-family="monospace">取消</text>
+
+  <!-- ================= 下: 图例 ================= -->
+  <rect x="20" y="540" width="920" height="280" rx="12" fill="#101020" stroke="#3a5a8c" stroke-width="1.5"/>
+  <text x="40" y="570" fill="#fff" font-size="15" font-family="monospace" font-weight="bold">补丁职责 (AudioSync) 与核心关系</text>
+
+  <rect x="40" y="590" width="280" height="90" rx="8" fill="#14532d" stroke="#22c55e"/>
+  <text x="60" y="614" fill="#4ade80" font-size="13" font-family="monospace">UI 注入 (只改界面)</text>
+  <text x="60" y="636" fill="#cfd8e3" font-size="12" font-family="monospace">- 菜单删 选择图片/悬浮控制</text>
+  <text x="60" y="656" fill="#cfd8e3" font-size="12" font-family="monospace">- 注入 声音设置 → 打开面板</text>
+  <text x="60" y="676" fill="#cfd8e3" font-size="12" font-family="monospace">- 悬浮球隐藏, 标题 vcam-iOS-V2</text>
+
+  <rect x="340" y="590" width="280" height="90" rx="8" fill="#14532d" stroke="#22c55e"/>
+  <text x="360" y="614" fill="#4ade80" font-size="13" font-family="monospace">音频同步引擎</text>
+  <text x="360" y="636" fill="#cfd8e3" font-size="12" font-family="monospace">- 自动(同源): 取主菜单当前视频音轨</text>
+  <text x="360" y="656" fill="#cfd8e3" font-size="12" font-family="monospace">- AVCaptureAudioDataOutput 帧替换</text>
+  <text x="360" y="676" fill="#cfd8e3" font-size="12" font-family="monospace">- 切换视频自动跟随</text>
+
+  <rect x="640" y="590" width="280" height="90" rx="8" fill="#1d2c4d" stroke="#2c4a7a"/>
+  <text x="660" y="614" fill="#9fb3c8" font-size="13" font-family="monospace">核心 (零改动)</text>
+  <text x="660" y="636" fill="#cfd8e3" font-size="12" font-family="monospace">- 视频/直播/MJPEG/虚拟相机</text>
+  <text x="660" y="656" fill="#cfd8e3" font-size="12" font-family="monospace">- 旋转/相机开关/授权校验</text>
+  <text x="660" y="676" fill="#cfd8e3" font-size="12" font-family="monospace">- 全部保持不变</text>
+
+  <rect x="40" y="700" width="880" height="90" rx="8" fill="#0f3460" stroke="#3a5a8c"/>
+  <text x="60" y="726" fill="#cfd8e3" font-size="13" font-family="monospace">图例:</text>
+  <rect x="60" y="738" width="18" height="12" rx="3" fill="#14532d" stroke="#22c55e"/>
+  <text x="88" y="750" fill="#9fb3c8" font-size="12" font-family="monospace">绿色 = AudioSync 补丁 (UI 注入 + 音频引擎)</text>
+  <rect x="380" y="738" width="18" height="12" rx="3" fill="#1d2c4d" stroke="#2c4a7a"/>
+  <text x="408" y="750" fill="#9fb3c8" font-size="12" font-family="monospace">蓝色 = 核心原有 (零改动)</text>
+  <text x="660" y="750" fill="#e8a020" font-size="12" font-family="monospace">橙色 = 已移除项</text>
+  <text x="60" y="776" fill="#7d8ba1" font-size="12" font-family="monospace">拉流/图片模式: 自动(同源) 无音轨, 回落麦克风; 悬浮球不再创建, 激活后 25h 内存帽 + keep-alive 续期</text>
+</svg>

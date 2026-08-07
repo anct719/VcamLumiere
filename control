@@ -1,0 +1,8 @@
+Package: com.vcamplus.tweak
+Name: VCamPlus
+Version: 7.0.0
+Architecture: iphoneos-arm64
+Description: Virtual Camera for RootHide (iOS 15-17)
+Maintainer: vcamplus
+Author: vcamplus
+Section: Tweaks

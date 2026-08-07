@@ -1,0 +1,7 @@
+packages/
+theos/
+.theos/
+*.deb
+*.ipa
+.DS_Store
+vcam-debs/

@@ -1,0 +1,8 @@
+Package: com.vcamplus.audiosync
+Name: AudioSync
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: Audio sync patch module for vcamplus (stream audio injection + OBS support)
+Maintainer: vcamplus
+Author: vcamplus
+Section: Tweaks

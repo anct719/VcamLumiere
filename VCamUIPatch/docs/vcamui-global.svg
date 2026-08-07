@@ -1,0 +1,155 @@
+<svg width="1000" height="1580" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1000" height="1580" fill="#0d0d12"/>
+  <text x="26" y="36" fill="#e8e8e8" font-size="22" font-family="PingFang SC, Microsoft YaHei, monospace" font-weight="bold">VCamPlus 全局 UI 架构图 v1.1</text>
+  <text x="26" y="62" fill="#888" font-size="13" font-family="PingFang SC, Microsoft YaHei, monospace">黑色悬浮球 + 单层控制面板补丁 · 纯调原接口 · 不修改任何原源码 · v1.1 新增 视频投放(眼/嘴/头) + 颜色注入(彩/强度)</text>
+
+  <!-- ============ 流程条带: 入口 ============ -->
+  <rect x="20" y="84" width="960" height="78" rx="12" fill="#141824"/>
+  <text x="40" y="110" fill="#59c7ff" font-size="13" font-family="PingFang SC, monospace" font-weight="bold">① 入口 (原有 · 不变)</text>
+  <text x="40" y="136" fill="#bbb" font-size="12" font-family="PingFang SC, monospace">音量 + 连按 → 音量 - (1.5s 内) → 原卡密验证 vcam_showMenu → 授权通过</text>
+  <text x="40" y="156" fill="#7d8ba1" font-size="11" font-family="PingFang SC, monospace">进入点: src/Tweak.xm SBVolumeControl (±)  ·  验证: _isAuth() / _vrfO()</text>
+
+  <!-- 从入口到授权成功 / 拦截的箭头 -->
+  <line x1="500" y1="162" x2="500" y2="188" stroke="#59c7ff" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- ============ 授权分支 ============ -->
+  <rect x="120" y="188" width="760" height="170" rx="12" fill="#141824"/>
+  <text x="140" y="214" fill="#59c7ff" font-size="13" font-family="PingFang SC, monospace" font-weight="bold">② 授权分支 (原有 · 绝对不碰)</text>
+
+  <!-- 左: 未授权 -->
+  <rect x="150" y="228" width="340" height="116" rx="10" fill="#1d1a1a" stroke="#8c2626" stroke-opacity="0.6"/>
+  <text x="168" y="252" fill="#ff9a9a" font-size="12" font-family="PingFang SC, monospace" font-weight="bold">未授权 → 激活框 (原样展示)</text>
+  <text x="168" y="274" fill="#ccc" font-size="11" font-family="PingFang SC, monospace">标题: "Virtual Camera 授权" (src:1168)</text>
+  <text x="168" y="294" fill="#ccc" font-size="11" font-family="PingFang SC, monospace">结构: 有文本框 + "激活" action</text>
+  <text x="168" y="314" fill="#ff6b6b" font-size="11" font-family="PingFang SC" font-weight="bold">识别: 结构识别(有文本框) · 绝不拦截</text>
+  <text x="168" y="334" fill="#ff6b6b" font-size="11" font-family="PingFang SC">补丁仅做防串改修复(AudioSync 注入按钮时复原)</text>
+
+  <!-- 右: 已授权 -->
+  <rect x="510" y="228" width="340" height="116" rx="10" fill="#18201a" stroke="#3a7a3a" stroke-opacity="0.6"/>
+  <text x="528" y="252" fill="#8aff8a" font-size="12" font-family="PingFang SC, monospace" font-weight="bold">已授权 → 原主菜单 (被本补丁拦截)</text>
+  <text x="528" y="274" fill="#ccc" font-size="11" font-family="PingFang SC, monospace">原菜单: "Virtual Camera v7.0" (src:5460)</text>
+  <text x="528" y="294" fill="#ccc" font-size="11" font-family="PingFang SC">含 选择视频 / 悬浮控制 等 action</text>
+  <text x="528" y="314" fill="#59c7ff" font-size="11" font-family="PingFang SC" font-weight="bold">补丁拦截点: presentViewController hook</text>
+  <text x="528" y="334" fill="#59c7ff" font-size="11" font-family="PingFang SC">结构识别: 无文本框 + 选择视频/悬浮控制</text>
+
+  <!-- 右框向下箭头 -->
+  <line x1="680" y1="358" x2="680" y2="384" stroke="#59c7ff" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- ============ 拦截 → 悬浮球 ============ -->
+  <rect x="120" y="384" width="760" height="120" rx="12" fill="#141824"/>
+  <text x="140" y="410" fill="#59c7ff" font-size="13" font-family="PingFang SC, monospace" font-weight="bold">③ 拦截主菜单 → 展示黑色悬浮球 (新)</text>
+  <rect x="150" y="424" width="700" height="66" rx="10" fill="#0f0f14" stroke="#ffffff" stroke-opacity="0.12"/>
+  <circle cx="210" cy="457" r="24" fill="#141418" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
+  <text x="191" y="463" fill="#fff" font-size="13" font-family="PingFang SC, monospace" font-weight="bold">VC</text>
+  <text x="250" y="448" fill="#ddd" font-size="12" font-family="PingFang SC">48pt 黑色悬浮球 · 半透明 · 可拖动 · 松手吸附左右边缘</text>
+  <text x="250" y="470" fill="#bbb" font-size="11" font-family="PingFang SC">点击 → 展开/收起控制面板 · 拖动>4px 判定为拖动不触发点击</text>
+  <text x="250" y="488" fill="#7d8ba1" font-size="10" font-family="PingFang SC">不遮画面 · 不自动展开 · 删除补丁即恢复原主菜单弹窗</text>
+
+  <line x1="210" y1="504" x2="210" y2="530" stroke="#59c7ff" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- ============ 控制面板 ============ -->
+  <rect x="120" y="530" width="760" height="640" rx="12" fill="#141824"/>
+  <text x="140" y="556" fill="#59c7ff" font-size="13" font-family="PingFang SC, monospace" font-weight="bold">④ 控制面板 (新 · 单层无多级菜单 · 580pt 高)</text>
+
+  <rect x="150" y="570" width="700" height="586" rx="18" fill="#0f0f14" stroke="#ffffff" stroke-opacity="0.12"/>
+  <text x="180" y="600" fill="#fff" font-size="17" font-family="PingFang SC, monospace" font-weight="bold">VCam 控制面板</text>
+  <text x="816" y="600" fill="#b0b0b0" font-size="16" font-family="PingFang SC, monospace">✕</text>
+
+  <!-- 视频输入 -->
+  <text x="180" y="640" fill="#59c7ff" font-size="12" font-family="PingFang SC, monospace" font-weight="bold">视频输入</text>
+  <rect x="180" y="650" width="330" height="44" rx="10" fill="#292929"/><text x="310" y="677" fill="#fff" font-size="14" font-family="PingFang SC">选择视频</text>
+  <rect x="520" y="650" width="300" height="44" rx="10" fill="#292929"/><text x="650" y="677" fill="#fff" font-size="14" font-family="PingFang SC">直播拉流</text>
+  <text x="180" y="714" fill="#7d8ba1" font-size="10" font-family="PingFang SC">→ PHPicker(videos) + [UIHlp shared] 保存流程</text>
+  <text x="520" y="714" fill="#7d8ba1" font-size="10" font-family="PingFang SC">→ 写 stream.conf + enabled + [[MJRcv shared] startWithURL:]</text>
+
+  <!-- 声音控制 -->
+  <text x="180" y="746" fill="#59c7ff" font-size="12" font-family="PingFang SC, monospace" font-weight="bold">声音控制</text>
+  <text x="180" y="776" fill="#d9d9d9" font-size="14" font-family="PingFang SC">声音开关</text>
+  <rect x="330" y="762" width="46" height="26" rx="13" fill="#1a1a1a" stroke="#555"/><circle cx="346" cy="775" r="10" fill="#59c7ff"/>
+  <text x="390" y="778" fill="#7d8ba1" font-size="10" font-family="PingFang SC">写 audio.conf 字段[0] + 发 com.vcamplus.audio.changed</text>
+  <text x="180" y="806" fill="#d9d9d9" font-size="14" font-family="PingFang SC">音量</text>
+  <rect x="234" y="794" width="150" height="6" rx="3" fill="#333"/><rect x="234" y="794" width="75" height="6" rx="3" fill="#59c7ff"/><circle cx="309" cy="797" r="8" fill="#fff"/>
+  <text x="394" y="806" fill="#fff" font-size="12" font-family="PingFang SC">75%</text>
+  <text x="430" y="808" fill="#7d8ba1" font-size="10" font-family="PingFang SC">0~2.0 倍 · 0.4s 防抖 · 写 audio.conf 字段[2]</text>
+
+  <!-- 视频投放 眼/嘴/头 -->
+  <text x="180" y="846" fill="#59c7ff" font-size="12" font-family="PingFang SC, monospace" font-weight="bold">视频投放 (原数字键 1-3)</text>
+  <rect x="180" y="856" width="150" height="40" rx="9" fill="#2f4f6f"/><text x="248" y="881" fill="#fff" font-size="16" font-family="PingFang SC" font-weight="bold">眼</text>
+  <rect x="340" y="856" width="150" height="40" rx="9" fill="#2f4f6f"/><text x="408" y="881" fill="#fff" font-size="16" font-family="PingFang SC" font-weight="bold">嘴</text>
+  <rect x="500" y="856" width="150" height="40" rx="9" fill="#2f4f6f"/><text x="568" y="881" fill="#fff" font-size="16" font-family="PingFang SC" font-weight="bold">头</text>
+  <text x="180" y="916" fill="#7d8ba1" font-size="10" font-family="PingFang SC">→ 写 enabled 字段[1]=1/2/3 (videoIndex) + 发 com.vcamplus.ctrl · 投放路径 VCAM_DIR/1.mp4 ~ 3.mp4</text>
+
+  <!-- 颜色注入 -->
+  <text x="180" y="946" fill="#59c7ff" font-size="12" font-family="PingFang SC, monospace" font-weight="bold">颜色注入 (原 彩 / 强度+ / 强度-)</text>
+  <rect x="180" y="956" width="60" height="40" rx="9" fill="#2f6f4f"/><text x="208" y="981" fill="#fff" font-size="16" font-family="PingFang SC" font-weight="bold">彩</text>
+  <rect x="250" y="956" width="60" height="40" rx="9" fill="#292929"/><text x="268" y="981" fill="#fff" font-size="13" font-family="PingFang SC">强度+</text>
+  <rect x="320" y="956" width="60" height="40" rx="9" fill="#292929"/><text x="338" y="981" fill="#fff" font-size="13" font-family="PingFang SC">强度-</text>
+  <text x="400" y="980" fill="#7d8ba1" font-size="10" font-family="PingFang SC">→ 写 enabled 字段[7]=彩开关 · 字段[11]=alpha(±0.05, clamp 0.05~1.0) + 发 com.vcamplus.ctrl</text>
+
+  <!-- 虚拟相机 -->
+  <text x="180" y="1036" fill="#59c7ff" font-size="12" font-family="PingFang SC, monospace" font-weight="bold">虚拟相机</text>
+  <rect x="180" y="1046" width="640" height="44" rx="10" fill="#8c2626"/><text x="470" y="1073" fill="#fff" font-size="14" font-family="PingFang SC">关闭虚拟相机</text>
+  <text x="180" y="1112" fill="#7d8ba1" font-size="10" font-family="PingFang SC">→ 删 enabled 文件 + [MJRcv stop] + 删 stream.jpg</text>
+
+  <!-- 视频控制 -->
+  <text x="180" y="1140" fill="#59c7ff" font-size="12" font-family="PingFang SC, monospace" font-weight="bold">视频控制</text>
+  <rect x="180" y="1148" width="150" height="40" rx="9" fill="#292929"/><text x="243" y="1173" fill="#fff" font-size="14" font-family="PingFang SC">0°</text>
+  <rect x="340" y="1148" width="150" height="40" rx="9" fill="#292929"/><text x="403" y="1173" fill="#fff" font-size="14" font-family="PingFang SC">90°</text>
+  <rect x="500" y="1148" width="150" height="40" rx="9" fill="#292929"/><text x="563" y="1173" fill="#fff" font-size="14" font-family="PingFang SC">180°</text>
+  <rect x="660" y="1148" width="150" height="40" rx="9" fill="#292929"/><text x="723" y="1173" fill="#fff" font-size="14" font-family="PingFang SC">270°</text>
+  <text x="180" y="1208" fill="#7d8ba1" font-size="10" font-family="PingFang SC">→ 写 enabled 字段[2] (rotation) + 发 com.vcamplus.ctrl · 注: 缩放按钮已按需求移除</text>
+
+  <!-- ============ 原有保留 ============ -->
+  <rect x="120" y="1186" width="760" height="100" rx="12" fill="#141824"/>
+  <text x="140" y="1212" fill="#59c7ff" font-size="13" font-family="PingFang SC, monospace" font-weight="bold">⑤ 原有功能保留 (AudioSync 模块 · 不修改)</text>
+  <text x="150" y="1240" fill="#ccc" font-size="12" font-family="PingFang SC">· 声音悬浮面板 SoundPanel / 旋转 / 声音设置入口 (AudioSync/src/Tweak.xm)</text>
+  <text x="150" y="1262" fill="#ccc" font-size="12" font-family="PingFang SC">· FWCtrl 视频4-6切换(数字键4-6) / 画面控制 / 颜色注入(+/- 键改 alpha) (src:4210)</text>
+  <text x="150" y="1284" fill="#ccc" font-size="12" font-family="PingFang SC">· 配置文件格式与本补丁完全一致 (enabled / audio.conf / stream.conf)</text>
+
+  <!-- ============ 接口映射表 ============ -->
+  <rect x="120" y="1302" width="760" height="236" rx="12" fill="#141824"/>
+  <text x="140" y="1328" fill="#59c7ff" font-size="13" font-family="PingFang SC, monospace" font-weight="bold">⑥ 接口映射 (全部调用原接口, 不重实现业务逻辑)</text>
+
+  <!-- 表头 -->
+  <rect x="140" y="1340" width="720" height="30" rx="6" fill="#1f2937"/>
+  <text x="160" y="1360" fill="#9fb3c8" font-size="12" font-family="PingFang SC" font-weight="bold">面板按钮</text>
+  <text x="420" y="1360" fill="#9fb3c8" font-size="12" font-family="PingFang SC" font-weight="bold">调用的原接口</text>
+
+  <text x="160" y="1396" fill="#ddd" font-size="12" font-family="PingFang SC">选择视频</text>
+  <text x="420" y="1396" fill="#7d8ba1" font-size="11" font-family="PingFang SC">PHPicker + [UIHlp shared] (原保存流程, src:5220)</text>
+  <line x1="150" y1="1410" x2="850" y2="1410" stroke="#ffffff" stroke-opacity="0.06"/>
+
+  <text x="160" y="1432" fill="#ddd" font-size="12" font-family="PingFang SC">直播拉流</text>
+  <text x="420" y="1432" fill="#7d8ba1" font-size="11" font-family="PingFang SC">写 stream.conf + enabled + [[MJRcv shared] startWithURL:] (src:4935)</text>
+  <line x1="150" y1="1446" x2="850" y2="1446" stroke="#ffffff" stroke-opacity="0.06"/>
+
+  <text x="160" y="1468" fill="#ddd" font-size="12" font-family="PingFang SC">声音开关 / 音量</text>
+  <text x="420" y="1468" fill="#7d8ba1" font-size="11" font-family="PingFang SC">写 audio.conf + 发 com.vcamplus.audio.changed (AudioSync:62-83)</text>
+  <line x1="150" y1="1482" x2="850" y2="1482" stroke="#ffffff" stroke-opacity="0.06"/>
+
+  <text x="160" y="1504" fill="#ddd" font-size="12" font-family="PingFang SC">眼 / 嘴 / 头</text>
+  <text x="420" y="1504" fill="#7d8ba1" font-size="11" font-family="PingFang SC">写 enabled 字段[1]=1/2/3 (videoIndex) + 发 com.vcamplus.ctrl</text>
+  <line x1="150" y1="1518" x2="850" y2="1518" stroke="#ffffff" stroke-opacity="0.06"/>
+
+  <text x="160" y="1540" fill="#ddd" font-size="12" font-family="PingFang SC">彩 / 强度+ / 强度-</text>
+  <text x="420" y="1540" fill="#7d8ba1" font-size="11" font-family="PingFang SC">写 enabled 字段[7]=彩开关, 字段[11]=alpha ±0.05 (clamp 0.05~1.0) + com.vcamplus.ctrl</text>
+
+  <text x="160" y="1562" fill="#ddd" font-size="12" font-family="PingFang SC">关闭虚拟相机</text>
+  <text x="420" y="1562" fill="#7d8ba1" font-size="11" font-family="PingFang SC">删 enabled + [MJRcv stop] + 删 stream.jpg</text>
+
+  <text x="160" y="1584" fill="#ddd" font-size="12" font-family="PingFang SC">旋转 0/90/180/270</text>
+  <text x="420" y="1584" fill="#7d8ba1" font-size="11" font-family="PingFang SC">写 enabled 字段[2] + 发 com.vcamplus.ctrl</text>
+
+  <text x="160" y="1606" fill="#ddd" font-size="12" font-family="PingFang SC">补丁唯一 Hook</text>
+  <text x="420" y="1606" fill="#7d8ba1" font-size="11" font-family="PingFang SC">UIViewController presentViewController:animated:completion: (method_setImplementation)</text>
+
+  <!-- ============ 红线 ============ -->
+  <rect x="120" y="1620" width="760" height="20" rx="6" fill="#2a1616"/>
+  <text x="140" y="1634" fill="#ff6b6b" font-size="12" font-family="PingFang SC" font-weight="bold">红线: 激活框结构识别(有文本框)=绝不拦截 · 禁止 containsString 误判 · 不修改原源码 · 可整体删除恢复原状</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#59c7ff"/>
+    </marker>
+  </defs>
+</svg>

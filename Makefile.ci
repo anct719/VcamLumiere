@@ -1,0 +1,18 @@
+export TARGET := iphone:clang:latest:15.0
+export ARCHS = arm64 arm64e
+export THEOS_PACKAGE_SCHEME = rootless
+
+INSTALL_TARGET_PROCESSES = SpringBoard
+
+include $(THEOS)/makefiles/common.mk
+
+TWEAK_NAME = vcamplus
+
+vcamplus_FILES = src/Tweak.xm vcam_friend_js.mm
+# Temporary package build for testing without an activation cache. Set
+# VCAM_LICENSE_BYPASS=0 to restore normal license enforcement.
+VCAM_LICENSE_BYPASS ?= 1
+vcamplus_CFLAGS = -fobjc-arc -DVCAM_LICENSE_BYPASS=$(VCAM_LICENSE_BYPASS) -Wno-deprecated-declarations -Wno-unused-function -Wno-unused-variable -Wno-pointer-sign
+vcamplus_LDFLAGS = -Wl,-x -Wl,-S -lsubstrate -lz -framework UIKit -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework CoreImage -framework Vision -framework Security -framework ImageIO -framework IOSurface
+
+include $(THEOS_MAKE_PATH)/tweak.mk

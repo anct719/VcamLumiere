@@ -1,0 +1,8 @@
+Package: com.vcamplus.vcamui
+Name: VCamUI
+Version: 1.3.0
+Architecture: iphoneos-arm64
+Description: New black floating ball + control panel UI patch for vcamplus (calls original interfaces only). NOTE: uninstall requires a device restart (or respring) to fully restore the original menu UI.
+Maintainer: vcamplus
+Author: vcamplus
+Section: Tweaks

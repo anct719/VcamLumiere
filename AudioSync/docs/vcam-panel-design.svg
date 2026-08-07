@@ -1,0 +1,89 @@
+<svg width="460" height="520" xmlns="http://www.w3.org/2000/svg">
+  <rect width="460" height="520" fill="#14141f"/>
+  <text x="18" y="26" fill="#888" font-size="12" font-family="monospace">VCamPlus 悬浮面板设计 v4.0 (左功能菜单 + 右声音设置 · 纯 UI 重排, 功能零改动)</text>
+
+  <!-- 悬浮面板 -->
+  <rect x="20" y="40" width="420" height="440" rx="14" fill="#16213e" stroke="#3a5a8c" stroke-width="1.5"/>
+  <text x="40" y="68" fill="#fff" font-size="15" font-family="monospace" font-weight="bold">vcam-iOS-V2 控制面板</text>
+  <text x="378" y="68" fill="#ff6b6b" font-size="15" font-family="monospace">[✕]</text>
+
+  <!-- ============ 左: 功能菜单 ============ -->
+  <rect x="36" y="84" width="196" height="380" rx="10" fill="#101a2e" stroke="#2c4a7a"/>
+  <text x="48" y="104" fill="#9fb3c8" font-size="11" font-family="monospace">功能菜单</text>
+
+  <!-- 视频切换 1-6 -->
+  <text x="48" y="126" fill="#7d8ba1" font-size="10" font-family="monospace">视频切换 (tag 1-6)</text>
+  <rect x="48" y="132" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#2c4a7a"/><text x="62" y="152" fill="#cfd8e3" font-size="12" font-family="monospace">1</text>
+  <rect x="94" y="132" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#2c4a7a"/><text x="108" y="152" fill="#cfd8e3" font-size="12" font-family="monospace">2</text>
+  <rect x="140" y="132" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#2c4a7a"/><text x="154" y="152" fill="#cfd8e3" font-size="12" font-family="monospace">3</text>
+  <rect x="48" y="166" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#2c4a7a"/><text x="62" y="186" fill="#cfd8e3" font-size="12" font-family="monospace">4</text>
+  <rect x="94" y="166" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#2c4a7a"/><text x="108" y="186" fill="#cfd8e3" font-size="12" font-family="monospace">5</text>
+  <rect x="140" y="166" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#2c4a7a"/><text x="154" y="186" fill="#cfd8e3" font-size="12" font-family="monospace">6</text>
+
+  <!-- 画面控制 -->
+  <text x="48" y="214" fill="#7d8ba1" font-size="10" font-family="monospace">画面控制</text>
+  <rect x="48" y="220" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#3a5a8c"/><text x="62" y="240" fill="#cfd8e3" font-size="12" font-family="monospace">↑100</text>
+  <rect x="94" y="220" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#22c55e"/><text x="108" y="240" fill="#4ade80" font-size="12" font-family="monospace">转</text>
+  <rect x="140" y="220" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#3a5a8c"/><text x="154" y="240" fill="#cfd8e3" font-size="12" font-family="monospace">↓105</text>
+  <rect x="48" y="254" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#3a5a8c"/><text x="62" y="274" fill="#cfd8e3" font-size="12" font-family="monospace">←102</text>
+  <rect x="94" y="254" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#3a5a8c"/><text x="108" y="274" fill="#cfd8e3" font-size="12" font-family="monospace">正103</text>
+  <rect x="140" y="254" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#3a5a8c"/><text x="154" y="274" fill="#cfd8e3" font-size="12" font-family="monospace">→104</text>
+  <rect x="48" y="288" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#3a5a8c"/><text x="62" y="308" fill="#cfd8e3" font-size="12" font-family="monospace">▶107</text>
+  <rect x="94" y="288" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#3a5a8c"/><text x="108" y="308" fill="#cfd8e3" font-size="12" font-family="monospace">翻106</text>
+  <rect x="140" y="288" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#3a5a8c"/><text x="154" y="308" fill="#cfd8e3" font-size="12" font-family="monospace">⏸108</text>
+
+  <!-- 快捷 -->
+  <text x="48" y="336" fill="#7d8ba1" font-size="10" font-family="monospace">快捷</text>
+  <rect x="48" y="342" width="42" height="30" rx="5" fill="#14532d" stroke="#22c55e"/><text x="62" y="362" fill="#4ade80" font-size="12" font-family="monospace">直播</text>
+  <rect x="94" y="342" width="42" height="30" rx="5" fill="#14532d" stroke="#22c55e"/><text x="62" y="362" fill="#4ade80" font-size="12" font-family="monospace"></text><text x="100" y="362" fill="#4ade80" font-size="11" font-family="monospace">相机</text>
+  <rect x="140" y="342" width="42" height="30" rx="5" fill="#7f1d1d" stroke="#ff6b6b"/><text x="154" y="362" fill="#ff9b9b" font-size="11" font-family="monospace">关闭</text>
+
+  <!-- 颜色注入 -->
+  <text x="48" y="392" fill="#7d8ba1" font-size="10" font-family="monospace">颜色注入</text>
+  <rect x="48" y="398" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#3a5a8c"/><text x="62" y="418" fill="#cfd8e3" font-size="12" font-family="monospace">彩110</text>
+  <rect x="94" y="398" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#3a5a8c"/><text x="108" y="418" fill="#cfd8e3" font-size="12" font-family="monospace">+111</text>
+  <rect x="140" y="398" width="42" height="30" rx="5" fill="#1d2c4d" stroke="#3a5a8c"/><text x="154" y="418" fill="#cfd8e3" font-size="12" font-family="monospace">-112</text>
+
+  <!-- ============ 右: 声音设置 ============ -->
+  <rect x="246" y="84" width="178" height="380" rx="10" fill="#0f3460" stroke="#22c55e"/>
+  <text x="258" y="104" fill="#4ade80" font-size="11" font-family="monospace">声音同步设置</text>
+
+  <text x="258" y="130" fill="#cfd8e3" font-size="11" font-family="monospace">声音开关</text>
+  <rect x="330" y="118" width="72" height="22" rx="5" fill="#0a1f3a" stroke="#3a5a8c"/>
+  <rect x="332" y="120" width="32" height="18" rx="4" fill="#22c55e"/><text x="339" y="133" fill="#062c14" font-size="10" font-family="monospace">开</text>
+
+  <text x="258" y="156" fill="#cfd8e3" font-size="11" font-family="monospace">音频源类型</text>
+  <rect x="258" y="162" width="154" height="22" rx="5" fill="#0a1f3a" stroke="#22c55e"/>
+  <text x="268" y="177" fill="#4ade80" font-size="10" font-family="monospace">自动(同源)</text>
+
+  <text x="258" y="198" fill="#cfd8e3" font-size="11" font-family="monospace">音频地址 (OBS)</text>
+  <rect x="258" y="204" width="154" height="22" rx="5" fill="#0a1f3a" stroke="#3a5a8c"/>
+  <text x="268" y="219" fill="#555a66" font-size="9" font-family="monospace">http://ip:8080/stream.m3u8</text>
+
+  <rect x="258" y="234" width="154" height="22" rx="5" fill="#2563eb"/>
+  <text x="300" y="249" fill="#fff" font-size="11" font-family="monospace">测试连接</text>
+
+  <text x="258" y="278" fill="#cfd8e3" font-size="11" font-family="monospace">音量</text>
+  <rect x="290" y="271" width="90" height="5" rx="2" fill="#0a1f3a"/>
+  <rect x="290" y="271" width="68" height="5" rx="2" fill="#22c55e"/>
+  <circle cx="358" cy="273.5" r="6" fill="#22c55e"/>
+  <text x="378" y="278" fill="#fff" font-size="10" font-family="monospace">80%</text>
+
+  <text x="258" y="308" fill="#cfd8e3" font-size="11" font-family="monospace">同步方式</text>
+  <rect x="258" y="314" width="120" height="22" rx="5" fill="#0a1f3a" stroke="#3a5a8c"/>
+  <text x="268" y="329" fill="#fff" font-size="10" font-family="monospace">实时|对齐</text>
+
+  <rect x="258" y="346" width="154" height="34" rx="6" fill="#0a1f3a"/>
+  <circle cx="270" cy="363" r="5" fill="#22c55e"/>
+  <text x="284" y="367" fill="#cfd8e3" font-size="10" font-family="monospace">状态: 已连接 同步对齐</text>
+
+  <rect x="258" y="392" width="74" height="26" rx="6" fill="#22c55e"/>
+  <text x="282" y="409" fill="#062c14" font-size="11" font-family="monospace" font-weight="bold">保存</text>
+  <rect x="338" y="392" width="74" height="26" rx="6" fill="#334155"/>
+  <text x="362" y="409" fill="#cfd8e3" font-size="11" font-family="monospace">取消</text>
+
+  <text x="258" y="440" fill="#7d8ba1" font-size="9" font-family="monospace">所有按钮继续调用原方法 (btnTap: tag / 开关 / 滑块)</text>
+
+  <!-- 说明 -->
+  <text x="20" y="500" fill="#e8a020" font-size="11" font-family="monospace">入口: 悬浮球(可拖动) 点击展开面板; 全部 tag/action 与原来一致, 不新增不删除任何功能</text>
+</svg>

@@ -1,0 +1,62 @@
+<svg width="560" height="720" xmlns="http://www.w3.org/2000/svg">
+  <rect width="560" height="720" fill="#0d0d12"/>
+  <text x="18" y="26" fill="#888" font-size="13" font-family="monospace">VCamUI 新控制面板设计 v1.0 (黑色悬浮球 + 单层控制面板 · 纯调原接口)</text>
+
+  <!-- 背景: 模拟桌面 -->
+  <rect x="20" y="40" width="240" height="400" rx="10" fill="#1a1a22"/>
+  <rect x="290" y="40" width="250" height="400" rx="10" fill="#1a1a22"/>
+
+  <!-- ============ 左: 黑色悬浮球 ============ -->
+  <text x="34" y="64" fill="#9fb3c8" font-size="12" font-family="monospace">黑色悬浮球 (可拖动·吸附边缘)</text>
+  <circle cx="120" cy="180" r="24" fill="#141418" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
+  <text x="101" y="186" fill="#fff" font-size="13" font-family="monospace" font-weight="bold">VC</text>
+  <text x="34" y="232" fill="#7d8ba1" font-size="10" font-family="monospace">· 点击: 展开/收起控制面板</text>
+  <text x="34" y="248" fill="#7d8ba1" font-size="10" font-family="monospace">· 拖动: 任意位置, 松手吸附到左/右边缘</text>
+  <text x="34" y="264" fill="#7d8ba1" font-size="10" font-family="monospace">· 不遮画面, 不自动展开</text>
+
+  <!-- ============ 右: 控制面板 (单层) ============ -->
+  <text x="304" y="64" fill="#9fb3c8" font-size="12" font-family="monospace">控制面板 (单层 · 无多级菜单)</text>
+  <rect x="300" y="76" width="300" height="414" rx="18" fill="#0f0f14" stroke="#ffffff" stroke-opacity="0.12"/>
+  <text x="320" y="100" fill="#fff" font-size="16" font-family="monospace" font-weight="bold">VCam 控制面板</text>
+  <text x="556" y="100" fill="#b0b0b0" font-size="15" font-family="monospace">✕</text>
+
+  <!-- 视频输入 -->
+  <text x="320" y="134" fill="#59c7ff" font-size="12" font-family="monospace" font-weight="bold">视频输入</text>
+  <rect x="320" y="142" width="125" height="40" rx="10" fill="#292929"/><text x="348" y="167" fill="#fff" font-size="14" font-family="monospace">选择视频</text>
+  <rect x="455" y="142" width="125" height="40" rx="10" fill="#292929"/><text x="483" y="167" fill="#fff" font-size="14" font-family="monospace">直播拉流</text>
+
+  <!-- 声音控制 -->
+  <text x="320" y="208" fill="#59c7ff" font-size="12" font-family="monospace" font-weight="bold">声音控制</text>
+  <text x="320" y="236" fill="#d9d9d9" font-size="14" font-family="monospace">声音开关</text>
+  <rect x="530" y="222" width="46" height="26" rx="13" fill="#1a1a1a" stroke="#555"/><circle cx="546" cy="235" r="10" fill="#333"/>
+  <text x="320" y="268" fill="#d9d9d9" font-size="14" font-family="monospace">音量</text>
+  <rect x="374" y="256" width="150" height="6" rx="3" fill="#333"/><rect x="374" y="256" width="75" height="6" rx="3" fill="#59c7ff"/><circle cx="449" cy="259" r="8" fill="#fff"/>
+  <text x="534" y="268" fill="#fff" font-size="12" font-family="monospace">75%</text>
+
+  <!-- 虚拟相机 -->
+  <text x="320" y="308" fill="#59c7ff" font-size="12" font-family="monospace" font-weight="bold">虚拟相机</text>
+  <rect x="320" y="316" width="260" height="40" rx="10" fill="#8c2626"/><text x="416" y="341" fill="#fff" font-size="14" font-family="monospace">关闭虚拟相机</text>
+
+  <!-- 视频控制 -->
+  <text x="320" y="382" fill="#59c7ff" font-size="12" font-family="monospace" font-weight="bold">视频控制</text>
+  <rect x="320" y="390" width="56" height="38" rx="9" fill="#292929"/><text x="336" y="414" fill="#fff" font-size="14" font-family="monospace">0°</text>
+  <rect x="386" y="390" width="56" height="38" rx="9" fill="#292929"/><text x="398" y="414" fill="#fff" font-size="14" font-family="monospace">90°</text>
+  <rect x="452" y="390" width="56" height="38" rx="9" fill="#292929"/><text x="410" y="414" fill="#fff" font-size="14" font-family="monospace"></text><text x="464" y="414" fill="#fff" font-size="14" font-family="monospace">180°</text>
+  <rect x="518" y="390" width="56" height="38" rx="9" fill="#292929"/><text x="530" y="414" fill="#fff" font-size="14" font-family="monospace">270°</text>
+
+  <!-- 流程说明 -->
+  <text x="18" y="470" fill="#59c7ff" font-size="12" font-family="monospace" font-weight="bold">交互流程 (原有流程保持不变)</text>
+  <text x="18" y="492" fill="#aaa" font-size="11" font-family="monospace">音量 + → 音量 - (1.5s内)  →  原卡密验证 (vcam_showMenu)</text>
+  <text x="18" y="512" fill="#aaa" font-size="11" font-family="monospace">验证成功 → 拦截原主菜单弹窗 → 显示黑色悬浮球</text>
+  <text x="18" y="532" fill="#aaa" font-size="11" font-family="monospace">点击悬浮球 → 展开控制面板 → 各按钮调用原功能接口</text>
+
+  <text x="18" y="566" fill="#7d8ba1" font-size="11" font-family="monospace">接口映射 (全部调用原接口, 不重实现业务逻辑):</text>
+  <text x="18" y="588" fill="#7d8ba1" font-size="10" font-family="monospace">选择视频  → PHPicker + [UIHlp shared]  (原 UIHlp 保存流程)</text>
+  <text x="18" y="606" fill="#7d8ba1" font-size="10" font-family="monospace">直播拉流  → 写 stream.conf + enabled + [[MJRcv shared] startWithURL:]</text>
+  <text x="18" y="624" fill="#7d8ba1" font-size="10" font-family="monospace">声音开关/音量 → 写 audio.conf + 发 com.vcamplus.audio.changed</text>
+  <text x="18" y="642" fill="#7d8ba1" font-size="10" font-family="monospace">关闭虚拟相机 → 删 enabled + [MJRcv stop] + 删 stream.jpg</text>
+  <text x="18" y="660" fill="#7d8ba1" font-size="10" font-family="monospace">视频旋转 0/90/180/270 → 写 enabled 的 rotation 字段 + com.vcamplus.ctrl</text>
+
+  <!-- 红线说明 -->
+  <text x="18" y="692" fill="#ff6b6b" font-size="11" font-family="monospace">红线: 激活框("Virtual Camera 授权")结构识别=有文本框, 绝不拦截; 禁止 containsString 误判</text>
+</svg>

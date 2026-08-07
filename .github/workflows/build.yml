@@ -1,0 +1,56 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master, codex/license-bypass-build]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scheme: [rootless, roothide]
+        include:
+          - scheme: rootless
+            scheme_arg: "THEOS_PACKAGE_SCHEME=rootless"
+            theos_src: "theos/theos"
+          - scheme: roothide
+            scheme_arg: "THEOS_PACKAGE_SCHEME=roothide"
+            theos_src: "roothide/theos"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Theos
+        uses: waruhachi/theos-action@v2.4.6
+        with:
+          theos-src: ${{ matrix.theos_src }}
+          theos-branch: 'master'
+          sdks-src: 'theos/sdks'
+          sdks-branch: 'master'
+
+      - name: Build main package (vcamplus)
+        run: make -f Makefile.ci package FINALPACKAGE=1 ${{ matrix.scheme_arg }}
+
+      - name: Build AudioSync patch package
+        working-directory: AudioSync
+        run: make package FINALPACKAGE=1 ${{ matrix.scheme_arg }}
+
+      - name: Build VCamUI patch package
+        working-directory: VCamUIPatch
+        run: make package FINALPACKAGE=1 ${{ matrix.scheme_arg }}
+
+      - name: Install dpkg for merge
+        run: brew install dpkg
+
+      - name: Merge into single DEB
+        run: bash scripts/merge-deb.sh ${{ matrix.scheme }}
+
+      - name: Upload single DEB
+        uses: actions/upload-artifact@v4
+        with:
+          name: vcam-all-${{ matrix.scheme }}
+          path: vcam-all-${{ matrix.scheme }}.deb
